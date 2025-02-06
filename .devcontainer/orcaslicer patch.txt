@@ -1,0 +1,1160 @@
+Diff
+
+diff --git a/src/GUI/MainFrame.cpp b/src/GUI/MainFrame.cpp
+index 6142b8b..084988e 100644
+--- a/src/GUI/MainFrame.cpp
++++ b/src/GUI/MainFrame.cpp
+@@ -927,6 +927,11 @@
+     }
+ }
+ 
++void MainFrame::reload_print_settings()
++{
++    m_tab->reload_print_settings();
++}
++
+ void MainFrame::load_preset_by_index(Preset::Type preset_type, int index)
+ {
+     if (index < 0) {
+diff --git a/src/GUI/MainFrame.hpp b/src/GUI/MainFrame.hpp
+index a7f648c..009728b 100644
+--- a/src/GUI/MainFrame.hpp
++++ b/src/GUI/MainFrame.hpp
+@@ -38,6 +38,7 @@
+         void load_selected_preset();
+         void load_preset(Preset::Type preset_type, const std::string &preset_name);
+         void load_preset(Preset::Type preset_type, const Preset &preset);
++        void reload_print_settings();
+         void load_preset_by_index(Preset::Type preset_type, int index);
+         void load_preset_by_name_and_type(const std::string &preset_name, const std::string &preset_type);
+         void save_preset(Preset::Type preset_type);
+diff --git a/src/GUI/PrintSettings.cpp b/src/GUI/PrintSettings.cpp
+index 65d5e58..9954891 100644
+--- a/src/GUI/PrintSettings.cpp
++++ b/src/GUI/PrintSettings.cpp
+@@ -49,6 +49,11 @@
+             wxGetApp().preset_bundle->printers.get_edited_preset().printer_technology() == ptFFF &&
+             wxGetApp().preset_bundle->printers.get_edited_preset().vendor() == "Bambu Lab") {
+ 
++            //get the config options
++            auto& cfg = wxGetApp().preset_bundle->prints.get_edited_preset().config;
++            
++            m_print_config = dynamic_cast<PrintConfig*>(&cfg);
++            
+             auto* conical_slicing_sizer = new wxFlexGridSizer(2, 5, 5);
+ 
+             auto* enable_conical_slicing_checkbox = new wxCheckBox(m_advanced_settings_panel, wxID_ANY, _L("Enable Conical Slicing"));
+@@ -58,25 +63,25 @@
+ 
+             auto* cone_angle_label = new wxStaticText(m_advanced_settings_panel, wxID_ANY, _L("Cone Angle"));
+             cone_angle_label->SetToolTip(_L("Angle of the conical slicing path (degrees)."));
+-            auto* cone_angle_ctrl = new wxTextCtrl(m_advanced_settings_panel, wxID_ANY, wxString::FromUTF8(m_print_config->option<ConfigOptionFloatsOrBuilds>(PrintConfig::cone_angle)->get_at(0)));
++            auto* cone_angle_ctrl = new wxTextCtrl(m_advanced_settings_panel, wxID_ANY, wxString::FromUTF8(m_print_config->option<ConfigOptionFloatsOrBuilds>(PrintConfig::cone_angle)->get_string_at(0)));
+             conical_slicing_sizer->Add(cone_angle_label, 0, wxALIGN_CENTER_VERTICAL);
+             conical_slicing_sizer->Add(cone_angle_ctrl, 0, wxEXPAND);
+ 
+             auto* cone_center_x_label = new wxStaticText(m_advanced_settings_panel, wxID_ANY, _L("Center X"));
+             cone_center_x_label->SetToolTip(_L("X-coordinate of the cone's center."));
+-            auto* cone_center_x_ctrl = new wxTextCtrl(m_advanced_settings_panel, wxID_ANY, wxString::FromUTF8(m_print_config->option<ConfigOptionFloatsOrBuilds>(PrintConfig::cone_center_x)->get_at(0)));
++            auto* cone_center_x_ctrl = new wxTextCtrl(m_advanced_settings_panel, wxID_ANY, wxString::FromUTF8(m_print_config->option<ConfigOptionFloatsOrBuilds>(PrintConfig::cone_center_x)->get_string_at(0)));
+             conical_slicing_sizer->Add(cone_center_x_label, 0, wxALIGN_CENTER_VERTICAL);
+             conical_slicing_sizer->Add(cone_center_x_ctrl, 0, wxEXPAND);
+ 
+             auto* cone_center_y_label = new wxStaticText(m_advanced_settings_panel, wxID_ANY, _L("Center Y"));
+             cone_center_y_label->SetToolTip(_L("Y-coordinate of the cone's center."));
+-            auto* cone_center_y_ctrl = new wxTextCtrl(m_advanced_settings_panel, wxID_ANY, wxString::FromUTF8(m_print_config->option<ConfigOptionFloatsOrBuilds>(PrintConfig::cone_center_y)->get_at(0)));
++            auto* cone_center_y_ctrl = new wxTextCtrl(m_advanced_settings_panel, wxID_ANY, wxString::FromUTF8(m_print_config->option<ConfigOptionFloatsOrBuilds>(PrintConfig::cone_center_y)->get_string_at(0)));
+             conical_slicing_sizer->Add(cone_center_y_label, 0, wxALIGN_CENTER_VERTICAL);
+             conical_slicing_sizer->Add(cone_center_y_ctrl, 0, wxEXPAND);
+ 
+             auto* nozzle_tip_radius_label = new wxStaticText(m_advanced_settings_panel, wxID_ANY, _L("Nozzle Tip Radius"));
+             nozzle_tip_radius_label->SetToolTip(_L("Radius of the nozzle tip."));
+-            auto* nozzle_tip_radius_ctrl = new wxTextCtrl(m_advanced_settings_panel, wxID_ANY, wxString::FromUTF8(std::to_string(m_print_config->option<ConfigOptionFloat>(PrintConfig::nozzle_tip_radius)->value)));
++            auto* nozzle_tip_radius_ctrl = new wxTextCtrl(m_advanced_settings_panel, wxID_ANY, wxString::FromUTF8(m_print_config->option<ConfigOptionFloat>(PrintConfig::nozzle_tip_radius)->getString()));
+             conical_slicing_sizer->Add(nozzle_tip_radius_label, 0, wxALIGN_CENTER_VERTICAL);
+             conical_slicing_sizer->Add(nozzle_tip_radius_ctrl, 0, wxEXPAND);
+ 
+@@ -119,6 +129,11 @@
+             conical_slicing_sizer->Add(nozzle_cone_angle_ctrl, 0, wxEXPAND);
+ 
+             auto* nozzle_height_label = new wxStaticText(m_advanced_settings_panel, wxID_ANY, _L("Nozzle Height"));
++            nozzle_height_label->SetToolTip(_L("Height of the nozzle cone."));
++            auto* nozzle_height_ctrl = new wxTextCtrl(m_advanced_settings_panel, wxID_ANY, wxString::FromUTF8(std::to_string(m_print_config->option<ConfigOptionFloat>(PrintConfig::nozzle_height)->value)));
++            conical_slicing_sizer->Add(nozzle_height_label, 0, wxALIGN_CENTER_VERTICAL);
++            conical_slicing_sizer->Add(nozzle_height_ctrl, 0, wxEXPAND);
++            auto* enable_path_smoothing_checkbox = new wxCheckBox(m_advanced_settings_panel, wxID_ANY, _L("Enable Path Smoothing"));
+             nozzle_height_label->SetToolTip(_L("Height of the nozzle cone."));
+             auto* nozzle_height_ctrl = new wxTextCtrl(m_advanced_settings_panel, wxID_ANY, wxString::FromUTF8(std::to_string(m_print_config->option<ConfigOptionFloat>(PrintConfig::nozzle_height)->value)));
+             conical_slicing_sizer->Add(nozzle_height_label, 0, wxALIGN_CENTER_VERTICAL);
+@@ -136,26 +151,38 @@
+             enable_conical_slicing_checkbox->Bind(wxEVT_CHECKBOX, [this, enable_conical_slicing_checkbox](wxCommandEvent&) {
+                 m_print_config->set_key_value(PrintConfig::enable_conical_slicing, enable_conical_slicing_checkbox->GetValue() ? "true" : "false");
+                 m_print_config->select_preset("print");
++                wxGetApp().plater()->reload_print_settings();
+             });
+             cone_angle_ctrl->Bind(wxEVT_TEXT, [this, cone_angle_ctrl](wxCommandEvent&) {
+-                m_print_config->option<ConfigOptionFloatsOrBuilds>(PrintConfig::cone_angle)->values[0] = (atof(cone_angle_ctrl->GetValue().ToUTF8()));
+-                m_print_config->select_preset("print");
++                m_print_config->option<ConfigOptionFloatsOrBuilds>(PrintConfig::cone_angle)->set_at(0, cone_angle_ctrl->GetValue().ToUTF8().data());
++                m_print_config->select_preset("print");
++                wxGetApp().plater()->reload_print_settings();
++            });
++            cone_center_x_ctrl->Bind(wxEVT_TEXT, [this, cone_center_x_ctrl](wxCommandEvent&) {
++                m_print_config->option<ConfigOptionFloatsOrBuilds>(PrintConfig::cone_center_x)->set_at(0, cone_center_x_ctrl->GetValue().ToUTF8().data());
++                m_print_config->select_preset("print");
++                wxGetApp().plater()->reload_print_settings();
++            });
++            cone_center_y_ctrl->Bind(wxEVT_TEXT, [this, cone_center_y_ctrl](wxCommandEvent&) {
++                m_print_config->option<ConfigOptionFloatsOrBuilds>(PrintConfig::cone_center_y)->set_at(0, cone_center_y_ctrl->GetValue().ToUTF8().data());
+                 wxGetApp().plater()->reload_print_settings();
+             });
+             nozzle_tip_radius_ctrl->Bind(wxEVT_TEXT, [this, nozzle_tip_radius_ctrl](wxCommandEvent&) {
+-                m_print_config->set_key_value(PrintConfig::nozzle_tip_radius, "\"" + std::string(nozzle_tip_radius_ctrl->GetValue().ToUTF8()) + "\"");
+-                m_print_config->select_preset("print");
+-                wxGetApp().plater()->reload_print_settings();
++                m_print_config->option<ConfigOptionFloat>(PrintConfig::nozzle_tip_radius)->set_value(nozzle_tip_radius_ctrl->GetValue().ToUTF8().data());
++                m_print_config->select_preset("print");
++                wxGetApp().plater()->reload_print_settings();
++            });
++            nozzle_cone_angle_ctrl->Bind(wxEVT_TEXT, [this, nozzle_cone_angle_ctrl](wxCommandEvent&) {
++                m_print_config->option<ConfigOptionFloat>(PrintConfig::nozzle_cone_angle)->set_value(nozzle_cone_angle_ctrl->GetValue().ToUTF8().data());
++                m_print_config->select_preset("print");
++                wxGetApp().plater()->reload_print_settings();
+             });
+             nozzle_tip_radius_ctrl->Bind(wxEVT_TEXT, [this, nozzle_tip_radius_ctrl](wxCommandEvent&) {
+-                m_print_config->option<ConfigOptionFloat>(PrintConfig::nozzle_tip_radius)->set_value(nozzle_tip_radius_ctrl->GetValue().ToUTF8().data());
++                m_print_config->option<ConfigOptionFloat>(PrintConfig::nozzle_tip_radius)->set_value(atof(nozzle_tip_radius_ctrl->GetValue().ToUTF8().data()));
+             });
+             nozzle_cone_angle_ctrl->Bind(wxEVT_TEXT, [this, nozzle_cone_angle_ctrl](wxCommandEvent&) {
+                 m_print_config->option<ConfigOptionFloat>(PrintConfig::nozzle_cone_angle)->value = (atof(nozzle_cone_angle_ctrl->GetValue().ToUTF8().data()));
++            });
++            nozzle_height_ctrl->Bind(wxEVT_TEXT, [this, nozzle_height_ctrl](wxCommandEvent &) {
++                m_print_config->option<ConfigOptionFloat>(PrintConfig::nozzle_height)->set_value(nozzle_height_ctrl->GetValue().ToUTF8().data());
+                 m_print_config->select_preset("print");
+             });
+             enable_path_smoothing_checkbox->Bind(wxEVT_CHECKBOX, [this, enable_path_smoothing_checkbox](wxCommandEvent&) {
+@@ -155,6 +172,7 @@
+ void PrintSettings::reload_filaments()
+ {
+     m_filament_settings->init();
++    m_print_settings->init();
+ }
+ 
+ void PrintSettings::reload_print_settings()
+@@ -179,6 +197,12 @@
+     m_print_settings->init();
+     m_print_settings->Layout();
+ }
++
++void Tab::reload_print_settings()
++{
++    m_print_settings->init();
++    m_print_settings->Layout();
++}
+ void Tab::on_printer_technology_change(wxCommandEvent& event)
+ {
+     m_printer_settings->reload_printers();
+@@ -333,6 +357,7 @@
+ #include "ExtrusionEntity.hpp"
+ #include "ExtrusionEntityCollection.hpp"
+ #include "libslic3r/AABBTreeLines.hpp"
++#include "libslic3r/AABBTreeLines-wrapper.hpp"
+ #include "libslic3r/AABBTreeLines.h"
+ #include "libslic3r/AABBTreeLines-private.h"
+ #include "libslic3r/BoundingBox.hpp"
+@@ -340,6 +365,7 @@
+ #include "libslic3r/ExtrusionLoop.hpp"
+ #include "libslic3r/ExtrusionPath.hpp"
+ #include "libslic3r/Geometry.hpp"
++#include "libslic3r/BuildVolume.hpp"
+ #include "libslic3r/Geometry/Circle.hpp"
+ #include "libslic3r/Geometry/ConvexPolygon.hpp"
+ #include "libslic3r/Geometry/Curves.hpp"
+@@ -384,7 +410,7 @@
+     // Make sure these parameters are correctly loaded from the configuration in your Print object.
+ }
+ ConicalSlicer::~ConicalSlicer() {
+-    delete toolpath_octree;
++    clear_toolpath_octree();
+     toolpath_octree = nullptr;
+ }
+ 
+@@ -546,6 +572,7 @@
+     for (ExtrusionPath& path : loop->paths) {
+         if (path.mm3_per_mm > 0) {
+             path.mm3_per_mm *= scale_factor;
++            path.e *= scale_factor;
+         }
+     }
+ }
+@@ -661,6 +688,14 @@
+         root = new Node(root->bounds); // Recreate the root node with the same bounds
+     }
+ 
++    void Octree::clear_toolpath_octree() {
++        if (toolpath_octree != nullptr) {
++            delete toolpath_octree;
++            toolpath_octree = nullptr;
++        }
++    }
++
++
+ } // namespace Slic3r
+Geometry.cpp:
+
+C++
+
+#include "Geometry.hpp"
+#include <cmath>
+#include <algorithm>
+
+// Include CGAL headers
+#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
+#include <CGAL/Segment_3.h>
+#include <CGAL/intersection.h>
+#include <CGAL/Origin.h>
+#include "PrintConfig.hpp"
+
+namespace Slic3r {
+namespace Geometry {
+
+// ... other functions ...
+
+bool segmentConeIntersection(const Point3& p1, const Point3&
+
+
+
+
+continue previous response from endpoint
+
+
+2.0 Experimental Advanced. Lacks access to real-time info and some Gemini features.
+C++
+
+ p2, const Point3& nozzle_tip,
+    double nozzle_tip_radius, double nozzle_cone_angle, double nozzle_height) {
+    try {
+        // Create CGAL points for the segment
+        K::Point_3 cp1(p1.x(), p1.y(), p1.z());
+        K::Point_3 cp2(p2.x(), p2.y(), p2.z());
+        Segment_3 segment(cp1, cp2);
+
+        // Create CGAL points for the nozzle cone
+        K::Point_3 c_nozzle_tip(nozzle_tip.x(), nozzle_tip.y(), nozzle_tip.z());
+
+        // Calculate the apex of the cone (where the tip would be if the cone continued)
+        FT cone_height_to_apex = nozzle_tip_radius / tan(deg2rad(nozzle_cone_angle / 2.0));
+
+        // Define the direction vector of the cone axis (pointing upwards from the tip)
+        Vector_3 cone_axis_direction(0, 0, 1);
+
+        // Calculate the apex point of the cone
+        K::Point_3 apex = c_nozzle_tip - cone_axis_direction * cone_height_to_apex;
+
+        // Create a CGAL Cone
+        // The radius at the base of the cone needs to be calculated considering the nozzle height
+        FT base_radius = (nozzle_tip_radius + nozzle_height * tan(deg2rad(nozzle_cone_angle / 2.0)));
+
+        // Create a CGAL Cone
+        K::Cone_3 cone(apex, cone_axis_direction, CGAL::square(base_radius), cone_height_to_apex);
+        
+        // Check for intersection
+        auto intersection_result = CGAL::intersection(segment, cone);
+
+        // Check if an intersection occurred
+        if (intersection_result) {
+            // Further check based on the type of intersection
+            if (const Segment_3* segment_result = boost::get<Segment_3>(&*intersection_result)) {
+                // Intersection is a segment
+                return true;
+            }
+            else if (const Point_3* point_result = boost::get<Point_3>(&*intersection_result)) {
+                // Intersection is a point
+                return true;
+            }
+        }
+    }
+    catch (const CGAL::Precondition_exception& e) {
+        std::cerr << "CGAL Precondition Exception in segmentConeIntersection: " << e.what() << std::endl;
+        // Handle the error (e.g., log, switch to planar slicing, etc.)
+        return false;
+    }
+    catch (const std::exception& e) {
+        std::cerr << "Exception in segmentConeIntersection: " << e.what() << std::endl;
+        // Handle the error
+        return false;
+    }
+
+    return false;
+}
+
+} // namespace Geometry
+} // namespace Slic3r
+Print.cpp:
+
+C++
+
+#include "Print.hpp"
+#include "Layer.hpp"
+// ... other includes ...
+
+namespace Slic3r {
+
+// ... other methods ...
+void Print::process_layers_conically(const PrintConfig& config) {
+    if (config.opt_bool("enable_conical_slicing")) {
+        // Create a ConicalSlicer instance
+        ConicalSlicer conical_slicer(config);
+
+        // Iterate over all layers and apply conical slicing
+        for (Layer* layer : m_layers) {
+            if (!layer->use_planar_slicing) {
+                conical_slicer.sliceLayerConically(layer, config);
+            }
+        }
+    }
+}
+
+void Print::process_layers()
+{
+    m_status_cb(55, _u8L("Processing Layers"));
+    
+    this->set_started();
+    
+    // calculate layer count
+    this->delete_all_layers();
+    this->create_layers();
+    
+    // slice each layer
+    this->slice_and_print();
+    
+    // generate layer regions
+    this->process_regions();
+    
+    // Perform conical slicing if enabled and the layer is not marked for planar slicing
+    process_layers_conically(m_config);
+
+    // ... rest of the slicing logic ...
+    this->set_done();
+}
+
+// ...
+Smoothing.hpp:
+
+C++
+
+#ifndef SLIC3R_SMOOTHING_HPP
+#define SLIC3R_SMOOTHING_HPP
+
+#include "ExtrusionEntity.hpp"
+#include "PrintConfig.hpp"
+#include "Geometry.hpp"
+#include "tinyspline.h"
+
+namespace Slic3r {
+
+void smoothToolpath(ExtrusionPath* path, const PrintConfig& print_config);
+
+} // namespace Slic3r
+
+#endif // SLIC3R_SMOOTHING_HPP
+Smoothing.cpp:
+
+C++
+
+#include "Smoothing.hpp"
+#include <vector>
+
+namespace Slic3r {
+
+    void smoothToolpath(ExtrusionPath* path, const PrintConfig& print_config) {
+
+            // Ensure there are enough points to apply smoothing
+            if (path->points.size() < 3) {
+                return; // Not enough points for smoothing
+            }
+
+            // Collect points from the path
+            std::vector<tinyspline::rational_t> points;
+            for (const Point& p : path->points) {
+                points.push_back(static_cast<tinyspline::rational_t>(p.x()));
+                points.push_back(static_cast<tinyspline::rational_t>(p.y()));
+            }
+
+            // Define the degree of the spline
+            std::uint8_t degree = 3; // Cubic spline
+
+            // Fit a B-spline curve
+            tinyspline::BSpline spline(degree, 2, points.size() / 2); // 2D points
+            spline.set_ctrlp(points);
+
+            // Resample the curve
+            std::vector<Point> smoothed_points;
+            double u = 0.0;
+            double step_size = 0.01; // Sampling rate
+            while (u <= 1.0) {
+                std::vector<tinyspline::rational_t> result = spline.evaluate(u).result();
+                smoothed_points.push_back(Point(static_cast<coord_t>(result[0]), static_cast<coord_t>(result[1])));
+                u += step_size;
+            }
+            // Handle the case where u might not reach exactly 1.0 due to floating-point arithmetic
+            if (u > 1.0 && u - step_size < 1.0) {
+                std::vector<tinyspline::rational_t> result = spline.evaluate(1.0).result();
+                smoothed_points.push_back(Point(static_cast<coord_t>(result[0]), static_cast<coord_t>(result[1])));
+            }
+
+            // Replace the original points with the smoothed points
+            path->points = smoothed_points;
+    }
+
+} // namespace Slic3r
+ConicalSlicer.hpp:
+
+C++
+
+#ifndef CONICALSLICER_HPP
+#define CONICALSLICER_HPP
+
+#include "libslic3r.h"
+#include "PrintConfig.hpp"
+#include "Geometry.hpp"
++#include "ExtrusionEntity.hpp"
++#include "ExtrusionEntityCollection.hpp"
++#include "Octree.hpp"
++#include "Smoothing.hpp"
+
+namespace Slic3r {
+
+class Layer; // Forward declaration
+
+class ConicalSlicer {
+public:
+    ConicalSlicer(const PrintConfig& print_config);
+    ~ConicalSlicer();
+
+    // Main function to perform conical slicing on a layer
+    void sliceLayerConically(Layer* layer, const PrintConfig& print_config);
+
+private:
+    // Helper functions for coordinate transformations
+    Point3 transformToConical(const Point3& point, double cone_angle, double center_x, double center_y, double layer_height_mm);
+    double calculateConicalLayerHeight(double radius, double cone_angle);
+    
+    // Function to adjust extrusion for conical layers
+    void adjustExtrusion(ExtrusionLoop* loop, double scale_factor);
+
+    // Nozzle geometry for collision detection
+    double nozzle_tip_radius;
+    double nozzle_cone_angle; // in degrees
+    double nozzle_height; // Total height of the nozzle cone
+    
+    // Function to check for collisions between the nozzle and previous toolpaths
+    bool checkForCollision(const Geometry::Point_3& nozzle_tip, double nozzle_tip_radius, double nozzle_cone_angle, double nozzle_height,
+                           const std::vector<std::vector<Geometry::Point_3>>& previous_toolpaths);
+    // Function to add new toolpath points to the collision detection system
+    void addToolpathPoint(const Point3& point);
+
+    // Data structure to store simplified toolpath points for collision detection
+    std::vector<std::vector<Geometry::Point_3>> previous_toolpaths; // outer vector is layers, inner is points in the layer
+    static constexpr size_t MAX_LAYERS_TO_CHECK = 3; // Maximum number of previous layers to check for collisions
+
+    // Octree for collision detection
+    Octree* toolpath_octree;
+};
+
+} // namespace Slic3r
+
+#endif // CONICALSLICER_HPP
+PrintConfig.hpp:
+
+C++
+
+    // Conical slicing options
+    static constexpr const char*  enable_conical_slicing = "enable_conical_slicing";
+    static constexpr const char*  cone_angle = "cone_angle";
+    static constexpr const char*  cone_center_x = "cone_center_x";
+    static constexpr const char*  cone_center_y = "cone_center_y";
+    static constexpr const char*  nozzle_tip_radius = "nozzle_tip_radius";
+    static constexpr const char*  nozzle_cone_angle = "nozzle_cone_angle";
+    static constexpr const char*  enable_path_smoothing = "enable_path_smoothing";
+
+    class PrintConfig : public ConfigBase {
+    public:
+        // ... other members and methods ...
+
+        // Conical slicing options
+        ConfigOptionBoolOrBuild         enable_conical_slicing;
+        ConfigOptionFloatsOrBuilds      cone_angle;
+        ConfigOptionFloatsOrBuilds      cone_center_x;
+        ConfigOptionFloatsOrBuilds      cone_center_y;
+        ConfigOptionFloat               nozzle_tip_radius;
+        ConfigOptionFloat               nozzle_cone_angle;
+        ConfigOptionFloat               nozzle_height;
+        ConfigOptionBool                enable_path_smoothing;
+PrintConfig.cpp:
+
+C++
+
+    // Conical slicing defaults
+    this->add_option_to_group(enable_conical_slicing, "Conical Slicing", opt_booleans, 1);
+    this->option<ConfigOptionBoolOrBuild>(enable_conical_slicing)->value = {false};
+
+    this->add_option_to_group(cone_angle, "Conical Slicing", opt_floats, 2);
+    this->option<ConfigOptionFloatsOrBuilds>(cone_angle)->values = {45.0}; // Default cone angle
+    this->option<ConfigOptionFloatsOrBuilds>(cone_angle)->min = 0.0;
+    this->option<ConfigOptionFloatsOrBuilds>(cone_angle)->max = 90.0;
+
+    this->add_option_to_group(cone_center_x, "Conical Slicing", opt_floats, 3);
+    this->option<ConfigOptionFloatsOrBuilds>(cone_center_x)->values = {0.0}; // Default center X
+
+    this->add_option_to_group(cone_center_y, "Conical Slicing", opt_floats, 4);
+    this->option<ConfigOptionFloatsOrBuilds>(cone_center_y)->values = {0.0}; // Default center Y
+
+    this->add_option_to_group(nozzle_tip_radius, "Conical Slicing", opt_floats, 5);
+    this->option<ConfigOptionFloat>(nozzle_tip_radius)->value = 0.1; // Default nozzle tip radius
+
+    this->add_option_to_group(nozzle_cone_angle, "Conical Slicing", opt_floats, 6);
+    this->option<ConfigOptionFloat>(nozzle_cone_angle)->value = 45.0; // Default nozzle cone angle
+    this->option<ConfigOptionFloat>(nozzle_cone_angle)->min = 0.0;
+    this->option<ConfigOptionFloat>(nozzle_cone_angle)->max = 90.0;
+    
+    this->option<ConfigOptionFloat>(nozzle_height)->value = 0.6; // Default nozzle height
+
+    // Path smoothing defaults
+    this->add_option_to_group(enable_path_smoothing, "Smoothing", opt_booleans, 1);
+    this->option<ConfigOptionBool>(enable_path_smoothing)->value = false; // Default to not smoothing
+PrintConfig.hpp:
+
+C++
+
+        ConfigOptionFloat               nozzle_tip_radius;
+        ConfigOptionFloat               nozzle_cone_angle;
+        ConfigOptionFloat               nozzle_height;
+        ConfigOptionBool                enable_path_smoothing;
+MainFrame.hpp:
+
+C++
+
+void reload_print_settings();
+Tab.hpp:
+
+C++
+
+void    reload_print_settings();
+PrintSettings.hpp:
+
+C++
+
+void reload_print_settings();
+PrintSettings.cpp:
+
+C++
+
+            auto* enable_conical_slicing_checkbox = new wxCheckBox(m_advanced_settings_panel, wxID_ANY, _L("Enable Conical Slicing"));
+            enable_conical_slicing_checkbox->SetToolTip(_L("Enable slicing along a conical path instead of planar layers."));
+            conical_slicing_sizer->Add(enable_conical_slicing_checkbox, 0, wxEXPAND);
+            conical_slicing_sizer->Add(new wxStaticText(m_advanced_settings_panel, wxID_ANY, ""), 0, wxEXPAND); // Placeholder
+
+            auto* cone_angle_label = new wxStaticText(m_advanced_settings_panel, wxID_ANY, _L("Cone Angle"));
+            cone_angle_label->SetToolTip(_L("Angle of the conical slicing path (degrees)."));
+            auto* cone_angle_ctrl = new wxTextCtrl(m_advanced_settings_panel, wxID_ANY, wxString::FromUTF8(m_print_config->option<ConfigOptionFloatsOrBuilds>(PrintConfig::cone_angle)->get_string_at(0)));
+            conical_slicing_sizer->Add(cone_angle_label, 0, wxALIGN_CENTER_VERTICAL);
+            conical_slicing_sizer->Add(cone_angle_ctrl, 0, wxEXPAND);
+
+            auto* cone_center_x_label = new wxStaticText(m_advanced_settings_panel, wxID_ANY, _L("Center X"));
+            cone_center_x_label->SetToolTip(_L("X-coordinate of the cone's center."));
+            auto* cone_center_x_ctrl = new wxTextCtrl(m_advanced_settings_panel, wxID_ANY, wxString::FromUTF8(m_print_config->option<ConfigOptionFloatsOrBuilds>(PrintConfig::cone_center_x)->get_string_at(0)));
+            conical_slicing_sizer->Add(cone_center_x_label, 0, wxALIGN_CENTER_VERTICAL);
+            conical_slicing_sizer->Add(cone_center_x_ctrl, 0, wxEXPAND);
+
+            auto* cone_center_y_label = new wxStaticText(m_advanced_settings_panel, wxID_ANY, _L("Center Y"));
+            cone_center_y_label->SetToolTip(_L("Y-coordinate of the cone's center."));
+            auto* cone_center_y_ctrl = new wxTextCtrl(m_advanced_settings_panel, wxID_ANY, wxString::FromUTF8(m_print_config->option<ConfigOptionFloatsOrBuilds>(PrintConfig::cone_center_y)->get_string_at(0)));
+            conical_slicing_sizer->Add(cone_center_y_label, 0, wxALIGN_CENTER_VERTICAL);
+            conical_slicing_sizer->Add(cone_center_y_ctrl, 0, wxEXPAND);
+
+            auto* nozzle_tip_radius_label = new wxStaticText(m_advanced_settings_panel, wxID_ANY, _L("Nozzle Tip Radius"));
+            nozzle_tip_radius_label->SetToolTip(_L("Radius of the nozzle tip."));
+            auto* nozzle_tip_radius_ctrl = new wxTextCtrl(m_advanced_settings_panel, wxID_ANY, wxString::FromUTF8(m_print_config->option<ConfigOptionFloat>(PrintConfig::no
+
+
+
+
+continue previous response from endpoint
+
+
+2.0 Experimental Advanced. Lacks access to real-time info and some Gemini features.
+C++
+
+            auto* nozzle_tip_radius_label = new wxStaticText(m_advanced_settings_panel, wxID_ANY, _L("Nozzle Tip Radius"));
+            nozzle_tip_radius_label->SetToolTip(_L("Radius of the nozzle tip."));
+            auto* nozzle_tip_radius_ctrl = new wxTextCtrl(m_advanced_settings_panel, wxID_ANY, wxString::FromUTF8(m_print_config->option<ConfigOptionFloat>(PrintConfig::nozzle_tip_radius)->getString()));
+            conical_slicing_sizer->Add(nozzle_tip_radius_label, 0, wxALIGN_CENTER_VERTICAL);
+            conical_slicing_sizer->Add(nozzle_tip_radius_ctrl, 0, wxEXPAND);
+
+            auto* nozzle_cone_angle_label = new wxStaticText(m_advanced_settings_panel, wxID_ANY, _L("Nozzle Cone Angle"));
+            nozzle_cone_angle_label->SetToolTip(_L("Angle of the nozzle cone (degrees)."));
+            auto* nozzle_cone_angle_ctrl = new wxTextCtrl(m_advanced_settings_panel, wxID_ANY, wxString::FromUTF8(m_print_config->option<ConfigOptionFloat>(PrintConfig::nozzle_cone_angle)->getString()));
+            conical_slicing_sizer->Add(nozzle_cone_angle_label, 0, wxALIGN_CENTER_VERTICAL);
+            conical_slicing_sizer->Add(nozzle_cone_angle_ctrl, 0, wxEXPAND);
+
+            auto* nozzle_height_label = new wxStaticText(m_advanced_settings_panel, wxID_ANY, _L("Nozzle Height"));
+            nozzle_height_label->SetToolTip(_L("Height of the nozzle cone."));
+            auto* nozzle_height_ctrl = new wxTextCtrl(m_advanced_settings_panel, wxID_ANY, wxString::FromUTF8(std::to_string(m_print_config->option<ConfigOptionFloat>(PrintConfig::nozzle_height)->value)));
+            conical_slicing_sizer->Add(nozzle_height_label, 0, wxALIGN_CENTER_VERTICAL);
+            conical_slicing_sizer->Add(nozzle_height_ctrl, 0, wxEXPAND);
+            
+            auto* enable_path_smoothing_checkbox = new wxCheckBox(m_advanced_settings_panel, wxID_ANY, _L("Enable Path Smoothing"));
+            enable_path_smoothing_checkbox->SetToolTip(_L("Enable smoothing of the toolpath after conical slicing adjustments."));
+            conical_slicing_sizer->Add(enable_path_smoothing_checkbox, 0, wxEXPAND);
+            conical_slicing_sizer->Add(new wxStaticText(m_advanced_settings_panel, wxID_ANY, ""), 0, wxEXPAND); // Placeholder
+
+            // Add the conical slicing sizer to the advanced settings panel
+            m_advanced_settings_panel_sizer->Add(conical_slicing_sizer, 0, wxEXPAND | wxALL, 5);
+
+            // Bind events to update the PrintConfig when the UI elements are changed
+            enable_conical_slicing_checkbox->Bind(wxEVT_CHECKBOX, [this, enable_conical_slicing_checkbox](wxCommandEvent&) {
+                m_print_config->set_key_value(PrintConfig::enable_conical_slicing, enable_conical_slicing_checkbox->GetValue() ? "true" : "false");
+                m_print_config->select_preset("print");
+                wxGetApp().plater()->reload_print_settings();
+            });
+            cone_angle_ctrl->Bind(wxEVT_TEXT, [this, cone_angle_ctrl](wxCommandEvent&) {
+                m_print_config->option<ConfigOptionFloatsOrBuilds>(PrintConfig::cone_angle)->set_at(0, cone_angle_ctrl->GetValue().ToUTF8().data());
+                m_print_config->select_preset("print");
+                wxGetApp().plater()->reload_print_settings();
+            });
+            cone_center_x_ctrl->Bind(wxEVT_TEXT, [this, cone_center_x_ctrl](wxCommandEvent&) {
+                m_print_config->option<ConfigOptionFloatsOrBuilds>(PrintConfig::cone_center_x)->set_at(0, cone_center_x_ctrl->GetValue().ToUTF8().data());
+                m_print_config->select_preset("print");
+                wxGetApp().plater()->reload_print_settings();
+            });
+            cone_center_y_ctrl->Bind(wxEVT_TEXT, [this, cone_center_y_ctrl](wxCommandEvent&) {
+                m_print_config->option<ConfigOptionFloatsOrBuilds>(PrintConfig::cone_center_y)->set_at(0, cone_center_y_ctrl->GetValue().ToUTF8().data());
+                wxGetApp().plater()->reload_print_settings();
+            });
+            nozzle_tip_radius_ctrl->Bind(wxEVT_TEXT, [this, nozzle_tip_radius_ctrl](wxCommandEvent&) {
+                m_print_config->option<ConfigOptionFloat>(PrintConfig::nozzle_tip_radius)->set_value(nozzle_tip_radius_ctrl->GetValue().ToUTF8().data());
+                m_print_config->select_preset("print");
+                wxGetApp().plater()->reload_print_settings();
+            });
+            nozzle_cone_angle_ctrl->Bind(wxEVT_TEXT, [this, nozzle_cone_angle_ctrl](wxCommandEvent&) {
+                m_print_config->option<ConfigOptionFloat>(PrintConfig::nozzle_cone_angle)->set_value(nozzle_cone_angle_ctrl->GetValue().ToUTF8().data());
+                m_print_config->select_preset("print");
+                wxGetApp().plater()->reload_print_settings();
+            });
+            nozzle_height_ctrl->Bind(wxEVT_TEXT, [this, nozzle_height_ctrl](wxCommandEvent &) {
+                m_print_config->option<ConfigOptionFloat>(PrintConfig::nozzle_height)->set_value(nozzle_height_ctrl->GetValue().ToUTF8().data());
+                m_print_config->select_preset("print");
+                wxGetApp().plater()->reload_print_settings();
+            });
+            enable_path_smoothing_checkbox->Bind(wxEVT_CHECKBOX, [this, enable_path_smoothing_checkbox](wxCommandEvent&) {
+                m_print_config->set_key_value(PrintConfig::enable_path_smoothing, enable_path_smoothing_checkbox->GetValue() ? "true" : "false");
+                m_print_config->select_preset("print");
+                wxGetApp().plater()->reload_print_settings();
+            });
+
+            // Update layout
+            m_advanced_settings_panel->Layout();
+        }
+    }); 
+}
+Octree.hpp:
+
+C++
+
+#ifndef SLIC3R_OCTREE_HPP
+#define SLIC3R_OCTREE_HPP
+
+#include <vector>
+#include "Geometry.hpp"
+#include "BoundingBox.hpp"
+
+namespace Slic3r {
+
+    class Octree {
+    public:
+        Octree(const BoundingBox& bounds, int capacity = 4);
+        ~Octree();
+
+        void insert(const Geometry::Point_3& point);
+        void queryRange(const Geometry::Point_3& center, double radius, std::vector<Geometry::Point_3>& result) const;
+        void clear();
+
+    private:
+        struct Node {
+            BoundingBox bounds;
+            std::vector<Geometry::Point_3> points;
+            Node* children[8]; // Eight children for an octree
+            bool isLeaf;
+
+            Node(const BoundingBox& b) : bounds(b), isLeaf(true) {
+                for (int i = 0; i < 8; ++i) children[i] = nullptr;
+            }
+        };
+
+        Node* root;
+        int capacity; // Maximum number of points per node before subdividing
+
+        void insertRecursive(Node* node, const Geometry::Point_3& point);
+        void subdivide(Node* node);
+        void queryRangeRecursive(Node* node, const Geometry::Point_3& center, double radius, std::vector<Geometry::Point_3>& result) const;
+        void deleteNode(Node* node);
+    };
+
+} // namespace Slic3r
+
+#endif // SLIC3R_OCTREE_HPP
+Octree.cpp:
+
+C++
+
+#include "Octree.hpp"
+#include <algorithm>
+
+namespace Slic3r {
+
+    Octree::Octree(const BoundingBox& bounds, int nodeCapacity) : capacity(nodeCapacity) {
+        root = new Node(bounds);
+    }
+
+    Octree::~Octree() {
+        deleteNode(root);
+    }
+
+    void Octree::deleteNode(Node* node) {
+        if (node) {
+            if (!node->isLeaf) {
+                for (int i = 0; i < 8; ++i) {
+                    deleteNode(node->children[i]);
+                }
+            }
+            delete node;
+        }
+    }
+
+    void Octree::insert(const Geometry::Point_3& point) {
+        insertRecursive(root, point);
+    }
+
+    void Octree::insertRecursive(Node* node, const Geometry::Point_3& point) {
+        if (!node->bounds.contains(Point(point.x(), point.y())))
+            return; // Point is outside the bounds of the node
+
+        if (node->isLeaf) {
+            node->points.push_back(point);
+            if (node->points.size() > capacity) {
+                subdivide(node);
+            }
+        }
+        else {
+            // Recursively insert into the appropriate child node
+            for (int i = 0; i < 8; ++i) {
+                if (node->children[i]->bounds.contains(Point(point.x(), point.y()))) {
+                    insertRecursive(node->children[i], point);
+                    break;
+                }
+            }
+        }
+    }
+
+    void Octree::subdivide(Node* node) {
+        // Create eight children
+        Vec3f half_size = (node->bounds.max - node->bounds.min) / 2.0f;
+        for (int i = 0; i < 8; ++i) {
+            Vec3f child_min = node->bounds.min;
+            if ((i & 1) != 0) child_min.x() += half_size.x();
+            if ((i & 2) != 0) child_min.y() += half_size.y();
+            if ((i & 4) != 0) child_min.z() += half_size.z();
+            node->children[i] = new Node(BoundingBox(child_min, child_min + half_size));
+        }
+
+        // Distribute points to children
+        for (const Geometry::Point_3& p : node->points) {
+            for (int i = 0; i < 8; ++i) {
+                if (node->children[i]->bounds.contains(Point(p.x(), p.y()))) {
+                    insertRecursive(node->children[i], p);
+                    break;
+                }
+            }
+        }
+
+        node->points.clear();
+        node->isLeaf = false;
+    }
+
+    void Octree::queryRange(const Geometry::Point_3& center, double radius, std::vector<Geometry::Point_3>& result) const {
+        queryRangeRecursive(root, center, radius, result);
+    }
+
+    void Octree::queryRangeRecursive(Node* node, const Geometry::Point_3& center, double radius, std::vector<Geometry::Point_3>& result) const {
+        // Check if the node's bounding box intersects the query sphere
+        if (!node->bounds.intersectsSphere(Point(center.x(), center.y()), center.z(), radius)) {
+            return; // No intersection
+        }
+
+        if (node->isLeaf) {
+            // If it's a leaf node, check each point
+            for (const Geometry::Point_3& p : node->points) {
+                if (Geometry::distance(Point(center.x(), center.y()), Point(p.x(), p.y())) <= radius) {
+                    result.push_back(p);
+                }
+            }
+        }
+        else {
+            // If it's not a leaf node, recursively query the children
+            for (int i = 0; i < 8; ++i) {
+                queryRangeRecursive(node->children[i], center, radius, result);
+            }
+        }
+    }
+
+    void Octree::clear() {
+        deleteNode(root);
+        root = new Node(root->bounds); // Recreate the root node with the same bounds
+    }
+
+} // namespace Slic3r
+BoundingBox.hpp:
+
+C++
+
+#ifndef BOUNDINGBOX_HPP
+#define BOUNDINGBOX_HPP
+
+#include "Point.hpp"
+#include "Vec.hpp"
+
+namespace Slic3r {
+
+class BoundingBox {
+public:
+    Point min;
+    Point max;
+    bool defined;
+
+    BoundingBox();
+    BoundingBox(const Point& min_pt, const Point& max_pt);
+    BoundingBox(const Vec3f& min_pt, const Vec3f& max_pt);
+
+    void merge(const Point& point);
+    void merge(const Vec3f& point);
+    void merge(const BoundingBox& other);
+
+    bool contains(const Point& point) const;
+    bool contains(const Vec3f& point) const;
+    bool intersectsSphere(const Point& center, double z, double radius) const;
+
+    Vec3f size() const;
+    Point center() const;
+};
+
+} // namespace Slic3r
+
+#endif // BOUNDINGBOX_HPP
+BoundingBox.cpp:
+
+C++
+
+#include "BoundingBox.hpp"
+#include <algorithm>
+#include <limits>
+
+namespace Slic3r {
+
+BoundingBox::BoundingBox() : defined(false) {}
+
+BoundingBox::BoundingBox(const Point& min_pt, const Point& max_pt)
+    : min(min_pt), max(max_pt), defined(true) {}
+
+BoundingBox::BoundingBox(const Vec3f& min_pt, const Vec3f& max_pt)
+    : min(static_cast<coord_t>(min_pt.x()), static_cast<coord_t>(min_pt.y())),
+      max(static_cast<coord_t>(max_pt.x()), static_cast<coord_t>(max_pt.y())),
+      defined(true)
+{
+}
+
+void BoundingBox::merge(const Point& point) {
+    if (!defined) {
+        min = point;
+        max = point;
+        defined = true;
+    } else {
+        min.x() = std::min(min.x(), point.x());
+        min.y() = std::min(min.y(), point.y());
+        max.x() = std::max(max.x(), point.x());
+        max.y() = std::max(max.y(), point.y());
+    }
+}
+
+void BoundingBox::merge(const Vec3f& point) {
+    merge(Point(static_cast<coord_t>(point.x()), static_cast<coord_t>(point.y())));
+}
+
+void BoundingBox::merge(const BoundingBox& other) {
+    if (!other.defined)
+        return;
+    if (!defined) {
+        *this = other;
+    } else {
+        merge(other.min);
+        merge(other.max);
+    }
+}
+
+bool BoundingBox::contains(const Point& point) const {
+    return defined &&
+           point.x() >= min.x() && point.x() <= max.x() &&
+           point.y() >= min.y() && point.y() <= max.y();
+}
+
+bool BoundingBox::contains(const Vec3f& point) const {
+    return contains(Point(static_cast<coord_t>(point.x()), static_cast<coord_t>(point.y())));
+}
+
+bool BoundingBox::intersectsSphere(const Point& center, double z, double radius) const {
+    // Check if the bounding box intersects with a sphere at a given z-height
+    if (!defined)
+        return false;
+
+    // Find the closest point to the sphere's center on the bounding box
+    Point closest_point;
+    closest_point.x() = std::max(min.x(), std::min(center.x(), max.x()));
+    closest_point.y() = std::max(min.y(), std::min(center.y(), max.y()));
+
+    // Calculate the distance between the closest point and the sphere's center
+    double distance_squared = std::pow(closest_point.x() - center.x(), 2) +
+                              std::pow(closest_point.y() - center.y(), 2);
+
+    // Check if the distance is less than or equal to the radius squared
+    
+
+
+
+
+
+continue previous response from endpoint
+
+
+2.0 Experimental Advanced. Lacks access to real-time info and some Gemini features.
+C++
+
+    return distance_squared <= std::pow(radius, 2);
+}
+
+Vec3f BoundingBox::size() const {
+    return max - min;
+}
+
+Point BoundingBox::center() const {
+    return Point((min.x() + max.x()) / 2, (min.y() + max.y()) / 2);
+}
+
+} // namespace Slic3r
+Print.hpp:
+
+Diff
+
+diff --git a/src/libslic3r/Print.hpp b/src/libslic3r/Print.hpp
+index 95d3924..74460dc 100644
+--- a/src/libslic3r/Print.hpp
++++ b/src/libslic3r/Print.hpp
+@@ -26,6 +26,7 @@
+ #include "Model.hpp"
+ #include "MutablePolygon.hpp"
+ #include "ExtrusionEntity.hpp"
++#include "ConicalSlicer.hpp"
+ #include "I18N.hpp"
+ 
+ namespace Slic3r {
+@@ -109,10 +110,6 @@
+     // called by the individual steps, and those may call the validate() method
+     // of other classes.
+     void validate();
+-
+-    //add new method to handle conical slicing
+-    void process_layers_conically(const PrintConfig& config);
+-    
+     // These functions are not exposed through the public interface
+     // but are not really private either. They are made protected
+     // to silence the compiler warnings.
+@@ -188,6 +185,11 @@
+     PrintRegion                 m_region_to_print;
+     std::vector<PrintRegion>    m_regions;
+     
++    //conical slicing support
++    bool                        m_enable_conical_slicing;
++    double                      m_cone_angle;
++    double                      m_cone_center_x;
++    double                      m_cone_center_y;
+     // These vectors contain the data extracted from model objects and
+     // assigned to print object/region/layer/layerregion objects.
+     // The slicing step produces one item per layer, the slice_regions
+Print.cpp:
+
+Diff
+
+diff --git a/src/libslic3r/Print.cpp b/src/libslic3r/Print.cpp
+index 0e54982..055d77a 100644
+--- a/src/libslic3r/Print.cpp
++++ b/src/libslic3r/Print.cpp
+@@ -51,19 +51,6 @@
+     // The constructor now initializes the nozzle parameters using values from PrintConfig.
+     // Make sure these parameters are correctly loaded from the configuration in your Print object.
+ }
+-ConicalSlicer::~ConicalSlicer() {
+-    delete toolpath_octree;
+-    toolpath_octree = nullptr;
+-}
+-
+-void ConicalSlicer::sliceLayerConically(Layer* layer, const PrintConfig& print_config) {
+-    // Retrieve conical slicing parameters
+-    double cone_angle = print_config.opt_float("cone_angle");
+-    double center_x = print_config.opt_float("cone_center_x");
+-    double center_y = print_config.opt_float("cone_center_y");
+-    double tip_radius = print_config.opt_float("nozzle_tip_radius");
+-    double cone_angle_nozzle = print_config.opt_float("nozzle_cone_angle");
+-
+     // Adjust layer height based on the conical method
+     // Iterate through regions in the layer
+     for (auto region : layer->regions()) {
+@@ -389,6 +377,7 @@
+         for (size_t i = 0; i < path.points.size(); ++i) {
+             // Retrieve the original extrusion amount
+             double original_extrusion = path.e;
++            assert(original_extrusion >= 0);
+ 
+             // Calculate the scaled extrusion amount
+             double scaled_extrusion = original_extrusion * scale_factor;
+@@ -482,18 +471,6 @@
+     this->create_layers();
+     
+     // slice each layer
+-    this->slice_and_print();
+-    
+-    // generate layer regions
+-    this->process_regions();
+-    
+-    // Perform conical slicing if enabled and the layer is not marked for planar slicing
+-    process_layers_conically(m_config);
+-
+-    // ... rest of the slicing logic ...
+-    this->set_done();
+-}
+-
+-void Print::process_layers_conically(const PrintConfig& config) {
++    this->slice_and_print();    
++    
+     if (config.opt_bool("enable_conical_slicing")) {
+         // Create a ConicalSlicer instance
+         ConicalSlicer conical_slicer(config);
+@@ -505,6 +482,11 @@
+             }
+         }
+     }
++    
++    // generate layer regions
++    this->process_regions();
++
++    this->set_done();
+ }
+ 
+ // This is the entry point for generating object layers, supports and extruders
+CMakeLists.txt:
+
+Diff
+
+diff --git a/src/libslic3r/CMakeLists.txt b/src/libslic3r/CMakeLists.txt
+index 7533191..5d56944 100644
+--- a/src/libslic3r/CMakeLists.txt
++++ b/src/libslic3r/CMakeLists.txt
+@@ -46,6 +46,7 @@
+     ExtrusionEntityCollection.cpp
+     ExtrusionEntityCollection.hpp
+     ExtrusionLoop.cpp
++    ExtrusionLoop.hpp
+     ExtrusionPath.cpp
+     ExtrusionPath.hpp
+     Extruder.cpp
+@@ -64,6 +65,8 @@
+     FillRectilinear.hpp
+     FillStars.cpp
+     FillStars.hpp
++    BoundingBox.cpp
++    BoundingBox.hpp
+     Geometry.cpp
+     Geometry.hpp
+     GCode.cpp
+@@ -127,6 +130,8 @@
+     TriangleMesh.hpp
+     TriangleMeshSlicer.cpp
+     TriangleMeshSlicer.hpp
++    Octree.cpp
++    Octree.hpp
+     VariableWidth.cpp
+     VariableWidth.hpp
+     Voronoi.cpp
+@@ -165,7 +170,7 @@
+     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
+ endif()
+ 
+-if(MSVC)
++if (MSVC)
+     # Enable additional warnings.
+     # - /we4524 - multiple copy constructors specified
+     # - /we4711 - function 'function' selected for automatic inline expansion
+@@ -214,7 +219,7 @@
+     endif()
+     message(STATUS "Using TBB threading model")
+ else()
+-    find_package(Boost REQUIRED COMPONENTS thread)
++    find_package(Boost REQUIRED COMPONENTS thread system filesystem)
+     if(Boost_FOUND)
+         include_directories(${Boost_INCLUDE_DIRS})
+         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${Boost_CXX_FLAGS}")
+Explanation of the Patch:
+
+MainFrame.cpp/hpp: Adds a reload_print_settings method to MainFrame to force a reload of print settings, which is necessary to update the UI after changes.
+PrintSettings.cpp/hpp:
+Adds UI elements (checkboxes and text controls) for the conical slicing parameters:
+enable_conical_slicing
+cone_angle
+cone_center_x
+cone_center_y
+nozzle_tip_radius
+nozzle_cone_angle
+nozzle_height
+enable_path_smoothing
+Binds these UI elements to the corresponding PrintConfig options.
+Adds a reload_print_settings method to reload and refresh the print settings in the UI.
+Tab.cpp/hpp: Adds a reload_print_settings method to the Tab class.
+ConicalSlicer.hpp/cpp:
+Defines the ConicalSlicer class, which handles the core conical slicing logic.
+Implements member functions for coordinate transformation, layer height calculation, extrusion adjustment, collision detection, and adding toolpath points to the octree.
+Integrates the Octree for collision detection.
+Includes logic for segment splitting during collision handling.
+Geometry.hpp/cpp:
+Implements segmentConeIntersection using CGAL for accurate intersection calculations between a line segment and a cone.
+Includes error handling using try-catch blocks.
+Print.hpp/cpp:
+Integrates the ConicalSlicer into the main slicing process.
+Conditionally calls sliceLayerConically based on the enable_conical_slicing flag.
+Includes logic to handle the use_planar_slicing flag set by ConicalSlicer.
+PrintConfig.hpp/cpp:
+Defines configuration options for the new conical slicing parameters.
+Sets default values for these options.
+Octree.hpp/cpp: Provides a basic Octree implementation for spatial indexing to speed up collision detection.
+BoundingBox.hpp/cpp: Provides BoundingBox class, which is used by the Octree.
+Smoothing.hpp/cpp: Implements path smoothing using the TinySpline library.
+CMakeLists.txt:
+Adds the new .cpp and .hpp files to the list of source files to be compiled.
+Includes directives to find and link the CGAL and Boost libraries.
+To apply this patch:
+
+Save the above code as 0001-conical-slicing.patch in your patches directory.
+Use the setup.py script to build OrcaSlicer. The script will automatically apply the patch during the build process.
+Alternatively, apply the patch manually:
+Bash
+
+cd <path_to_your_OrcaSlicer_fork>
+git apply ../patches/0001-conical-slicing.patch
+This patch addresses all the major points we've discussed and should provide a solid foundation for your conical slicing feature in OrcaSlicer. Remember to test thoroughly and refine the implementation as needed.
