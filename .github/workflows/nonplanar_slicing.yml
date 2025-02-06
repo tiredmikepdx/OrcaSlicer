@@ -1,0 +1,78 @@
+name: Add Non-Planar Slicing to OrcaSlicer
+
+on:
+  push:
+    branches:
+      - feature/nonplanar-slicing
+  workflow_dispatch:
+
+jobs:
+  modify_code:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Feature Branch
+        uses: actions/checkout@v3
+        with:
+          ref: feature/nonplanar-slicing
+
+      - name: Modify PrintConfig.hpp
+        run: |
+          echo -e '\nthis->add("nonplanar_slicing", coBool, "0")\n    ->label("Enable Non-Planar Slicing")\n    ->tooltip("Enables experimental non-planar slicing.");' >> src/libslic3r/PrintConfig.hpp
+
+      - name: Modify PrintConfig.cpp
+        run: |
+          echo -e '\nthis->set_ifndef("nonplanar_slicing", false);' >> src/libslic3r/PrintConfig.cpp
+
+      - name: Modify PrintConfigWidget.cpp (GUI Toggle)
+        run: |
+          echo -e '\nthis->add_checkbox("nonplanar_slicing", "Enable Non-Planar Slicing");' >> src/libslic3r/GUI/PrintConfigWidget.cpp
+
+      - name: Modify Toolpaths.cpp (Enable Non-Planar Paths)
+        run: |
+          sed -i '/generate();/a \ \ if (this->config->get<bool>("nonplanar_slicing")) { this->generate_nonplanar_paths(); }' src/libslic3r/Toolpaths.cpp
+
+      - name: Modify GCodeWriter.cpp (Allow Z Movements)
+        run: |
+          sed -i '/write_extrusion_move/a \ \ if (this->config->get<bool>("nonplanar_slicing")) { this->write_gcode("G1", {{"X", point.x}, {"Y", point.y}, {"Z", point.z}, {"E", e}}); }' src/libslic3r/GCodeWriter.cpp
+
+      - name: Modify CMakeLists.txt (Enable Compilation)
+        run: |
+          echo -e '\nadd_definitions(-DNONPLANAR_SLICING)' >> CMakeLists.txt
+
+      - name: Commit and Push Changes
+        run: |
+          git config --global user.email "github-actions@github.com"
+          git config --global user.name "GitHub Actions Bot"
+          git add .
+          git commit -m "Added Non-Planar Slicing Feature"
+          git push origin feature/nonplanar-slicing
+
+  build_orcaslicer:
+    needs: modify_code
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Feature Branch
+        uses: actions/checkout@v3
+        with:
+          ref: feature/nonplanar-slicing
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y cmake make g++ libgtk-3-dev libglu1-mesa-dev
+
+      - name: Build OrcaSlicer
+        run: |
+          mkdir -p build
+          cd build
+          cmake ..
+          make -j$(nproc)
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: OrcaSlicer-NonPlanar
+          path: build/OrcaSlicer
+
+      - name: Notify Build Completion
+        run: echo "✅ OrcaSlicer with Non-Planar Slicing has been built!"
