@@ -65,7 +65,7 @@ jobs:
             libcereal-dev
 
       - name: SimpleDebugStep # Simplified Debugging Step
-        run: # Empty run block
+        run: pwd # Added back the pwd command
 
       - name: Modify GUI ConfigWizard.cpp (GUI Option) # Using separate script file
         run: |
