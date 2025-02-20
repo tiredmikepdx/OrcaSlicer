@@ -8,6 +8,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -30,7 +33,8 @@ jobs:
           qtbase5-dev qtchooser qt5-qmake libqt5svg5-dev \
           libgl1-mesa-dev libglu1-mesa-dev \
           libcurl4-openssl-dev libtbb-dev \
-          libpng-dev libeigen3-dev
+          libpng-dev libeigen3-dev \
+          libglew-dev
 
     - name: Modify PerimeterGenerator.cpp (Arc Overhang Logic)
       run: |
@@ -87,7 +91,7 @@ jobs:
             print "}"; \
         }1' "$FILE" > temp && mv temp "$FILE"
 
-    - name: Modify GCode.cpp (GCode Arc Overhangs)
+    - name: Modify GCode.cpp (Arc Overhang Support)
       run: |
         FILE="src/libslic3r/GCode.cpp"
 
