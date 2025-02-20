@@ -4557,6 +4557,29 @@ static std::unique_ptr<EdgeGrid::Grid> calculate_layer_edge_grid(const Layer& la
 }
 
 std::string GCode::extrude_loop(ExtrusionLoop loop, std::string description, double speed, const ExtrusionEntitiesPtr& region_perimeters)
+bool is_arc_overhang = (loop.role() == erOverhangPerimeter && m_config->enable_arc_overhangs.value);
+if (is_arc_overhang) {
+    int original_temp = m_writer.get_temperature();
+    int original_fan = m_last_fan_speed;
+    double original_speed = m_current_speed;
+    gcode += this->set_temperature(m_config->arc_overhang_temperature.value, false, m_writer.extruder()->id());
+    gcode += this->set_fan(m_config->arc_overhang_fan_speed.value, true);
+    double arc_speed = m_config->arc_overhang_speed.value * 60;
+    Point start = loop_copy.polyline.points.front();
+    gcode += this->travel_to_xy(Vec2d(unscale<double>(start.x), unscale<double>(start.y)), "move to start of arc overhang", m_config->travel_speed.value * 60);
+    double total_e = 0.0;
+    Point last = start;
+    for (size_t i = 1; i < loop_copy.polyline.points.size(); ++i) {
+        Point current = loop_copy.polyline.points[i];
+        double segment_length = last.distance_to(current) * SCALING_FACTOR;
+        total_e += segment_length * e_per_mm;
+        gcode += this->_extrude_to_xy(Vec2d(unscale<double>(current.x), unscale<double>(current.y)), total_e, arc_speed, description);
+        last = current;
+    }
+    gcode += this->set_temperature(original_temp, false, m_writer.extruder()->id());
+    gcode += this->set_fan(original_fan, true);
+    m_current_speed = original_speed;
+}
 {
     
     // get a copy; don't modify the orientation of the original loop object otherwise
