@@ -9,7 +9,7 @@ on:
       - main
 
 jobs:
-  modify-file:
+  build:
     runs-on: ubuntu-latest
 
     steps:
@@ -20,6 +20,11 @@ jobs:
       run: |
         git config --global user.name 'GitHub Actions'
         git config --global user.email 'actions@github.com'
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libdbus-1-dev cmake build-essential ninja-build
 
     - name: Modify PerimeterGenerator.cpp
       run: |
