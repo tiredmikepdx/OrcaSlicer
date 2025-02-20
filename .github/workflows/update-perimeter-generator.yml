@@ -114,6 +114,6 @@ jobs:
     - name: Commit and push changes
       uses: EndBug/add-and-commit@v9.1.4
       with:
-        message: 'Integrated Arc Overhang
+        message: 'Integrated Arc Overhang'
 ::contentReference[oaicite:1]{index=1}
  
