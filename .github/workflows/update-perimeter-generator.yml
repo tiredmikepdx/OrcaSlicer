@@ -80,7 +80,7 @@ jobs:
           sed -i 's|coord_t threshold_external = 0.0;|const float expand_factor = 1.03f;\ncoord_t threshold_external = 0.0;\nif (apply_precise_outer_wall) {\n    threshold_external = this->ext_perimeter_flow.scaled_spacing() + (this->perimeter_flow.scaled_spacing() / 2.0);\n} else {\n    threshold_external = (this->ext_perimeter_flow.scaled_spacing() / 2.0) + (this->perimeter_flow.scaled_spacing() / 2.0);\n}\nthreshold_external *= expand_factor;|g' "$FILE_PG"
           # Insert helper functions before namespace closure
           awk '/} \/\/ namespace Slic3r/ { \
-              print "\n// --- New Helper Functions for Arc Overhangs ---"; \
+              print "\\n// --- New Helper Functions for Arc Overhangs ---"; \
               print "bool PerimeterGenerator::is_point_supported(const Point& pt, const Polygons& lower_layer) {"; \
               print "    const coord_t tolerance = scale_(0.1);"; \
               print "    Polygon buffer = offset(Polygon({pt}), tolerance)[0];"; \
@@ -99,7 +99,7 @@ jobs:
               print "    Polylines arc_paths;"; \
               print "    const double arc_step_size = scale_(0.2);"; \
               print "    const double max_radius = scale_(40.0);"; \
-              print "    for (const Point& start : start_points) {"; \
+              print "    for (const Point& start in start_points) {"; \
               print "        Polyline arc_path;"; \
               print "        arc_path.points.push_back(start);"; \
               print "        double current_offset = arc_step_size;"; \
