@@ -25,7 +25,7 @@ jobs:
       run: |
         FILE="src/libslic3r/PerimeterGenerator.cpp"
 
-        # Modify threshold_external calculation
+        # Modify threshold_external calculation safely
         sed -i '/coord_t threshold_external = 0.0;/c\
         const float expand_factor = 1.03f;\
         coord_t threshold_external = 0.0;\
@@ -114,6 +114,13 @@ jobs:
     - name: Commit and push changes
       uses: EndBug/add-and-commit@v9.1.4
       with:
-        message: 'Integrated Arc Overhang'
-::contentReference[oaicite:1]{index=1}
- 
+        message: 'Integrated Arc Overhang Enhancements'
+        push: true
+
+    - name: Build and test
+      run: |
+        mkdir -p build
+        cd build
+        cmake ..
+        make -j$(nproc)
+        ctest --output-on-failure
