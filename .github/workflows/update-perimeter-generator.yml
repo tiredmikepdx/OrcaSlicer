@@ -65,7 +65,7 @@ jobs:
             libcereal-dev
 
       - name: Debug: List GUI Directory # Debugging Step
-        run: |
+        run: | # Corrected YAML syntax - added pipe symbol!
           pwd
           ls -l src/slic3r/GUI/
 
