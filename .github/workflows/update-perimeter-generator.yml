@@ -20,13 +20,12 @@ jobs:
         run: |
           git config --global user.name 'GitHub Actions'
           git config --global user.email 'actions@github.com'
-
       - name: Cache Dependencies
         id: cache-dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
           path: /etc/apt/archives
-          key: "apt-packages-${{ runner.os }}-${{ hashFiles('apt-packages.txt') }}" # Enclosed key in double quotes
+          key: apt-packages-${{ runner.os }}-${{ hashFiles('apt-packages.txt') }}
           restore-keys: apt-packages-${{ runner.os }}-
 
       - name: Log Cache Miss
@@ -61,36 +60,94 @@ jobs:
             libfreetype6-dev \
             libzip-dev \
             gettext \
-            git-lfs \
-            libcereal-dev
-
-      - name: SimpleDebugStep # Simplified Debugging Step
-        run: pwd # Added back the pwd command
-
-      - name: Debug: List GUI Directory Contents # NEW DEBUG STEP
-        run: ls -l src/slic3r/GUI/
-
-      - name: Modify GUI ConfigWizard.cpp (GUI Option) # Using simplified sed command
-        run: |
-          GUI_FILE="src/slic3r/GUI/ConfigWizard.cpp"
-
-          # Create a separate script file to perform the sed command
-          echo '#!/bin/bash' > modify_gui_config.sh
-          echo "echo 'Running simplified sed command...'" >> modify_gui_config.sh # Debugging output
-          echo "sed -i 's/option/OPTION/g' \"\$GUI_FILE\"" >> modify_gui_config.sh # Simplified sed command
-          chmod +x modify_gui_config.sh
-
-          # Execute the separate script
-          ./modify_gui_config.sh
-
-
+            git-lfs
       - name: Modify PerimeterGenerator.cpp (Arc Overhang Logic & Threshold)
         run: |
           FILE_PG="src/libslic3r/PerimeterGenerator.cpp"
-
-          # Modify threshold_external calculation using 'r' for replace
-          sed -i 's|coord_t threshold_external = 0.0;|const float expand_factor = 1.03f;\\ncoord_t threshold_external = 0.0;\\nif (apply_precise_outer_wall) {\\n    threshold_external = this->ext_perimeter_flow.scaled_spacing() + (this->perimeter_flow.scaled_spacing() / 2.0);\\n} else {\\n    threshold_external = (this->ext_perimeter_flow.scaled_spacing() / 2.0) + (this->perimeter_flow.scaled_spacing() / 2.0);\\n}\\nthreshold_external *= expand_factor;|g' "$FILE_PG"
-
+          # Modify threshold_external calculation
+          sed -i '/coord_t threshold_external = 0.0;/c\
+          const float expand_factor = 1.03f;\
+          coord_t threshold_external = 0.0;\
+          if (apply_precise_outer_wall) {\
+              threshold_external = this->ext_perimeter_flow.scaled_spacing() + (this->perimeter_flow.scaled_spacing() / 2.0);\
+          } else {\
+              threshold_external = (this->ext_perimeter_flow.scaled_spacing() / 2.0) + (this->perimeter_flow.scaled_spacing() / 2.0);\
+          }\
+          threshold_external *= expand_factor;' "$FILE_PG"
+          # Insert Arc Overhang helper functions before the closing namespace
+          awk '/} \/\/ namespace Slic3r/ { \
+              print "\\n// --- New Helper Functions for Arc Overhangs ---"; \
+              print "bool PerimeterGenerator::is_point_supported(const Point& pt, const Polygons& lower_layer) {"; \
+              print "    const coord_t tolerance = scale_(0.1);"; \
+              print "    Polygon buffer = offset(Polygon({pt}), tolerance)[0];"; \
+              print "    return !intersection(buffer, lower_layer).empty();"; \
+              print "}"; \
+              print "std::vector<Point> PerimeterGenerator::find_supported_starts(const Polygon& perimeter, const Polygons& lower_layer) {"; \
+              print "    std::vector<Point> supported_starts;"; \
+              print "    for (const Point& pt : perimeter.points) {"; \
+              print "        if (this->is_point_supported(pt, lower_layer)) {"; \
+              print "            supported_starts.push_back(pt);"; \
+              print "        }"; \
+              print "    }"; \
+              print "    return supported_starts;"; \
+              print "}"; \
+              print "Polylines PerimeterGenerator::generate_arc_paths(const Polygon& overhang, const std::vector<Point>& start_points) {"; \
+              print "    Polylines arc_paths;"; \
+              print "    const double arc_step_size = scale_(0.2);"; \
+              print "    const double max_radius = scale_(40.0);"; \
+              print "    for (const Point& start : start_points) {"; \
+              print "        Polyline arc_path;"; \
+              print "        arc_path.points.push_back(start);"; \
+              print "        double current_offset = arc_step_size;"; \
+              print "        while (current_offset <= max_radius) { "; \
+              print "            Polygons offset_perimeter = offset(overhang, current_offset);"; \
+              print "            if (offset_perimeter.empty()) break;"; \
+              print "            Point next_point = offset_perimeter[0].closest_point(start);"; \
+              print "            arc_path.points.push_back(next_point);"; \
+              print "            current_offset += arc_step_size;"; \
+              print "        }"; \
+              print "        if (arc_path.points.size() > 1) {"; \
+              print "            arc_paths.push_back(arc_path);"; \
+              print "        }"; \
+              print "    }"; \
+              print "    return arc_paths;"; \
+              print "}"; \
+          }1' "$FILE_PG"
+          # Integrate Arc Overhang logic inside process() in PerimeterGenerator.cpp
+          sed -i '/    } \/\/ end if/a \
+          \n    // -- Begin Arc Overhang Integration -- \
+          if (this->m_print_config->enable_arc_overhangs) { \
+              Polygons overhang_perimeters = diff(perimeters_to_process, lower_layer_perimeters); \
+              for (const Polygon& overhang : overhang_perimeters) { \
+                  std::vector<Point> supported_starts = this->find_supported_starts(overhang, lower_layer_perimeters); \
+                  if (!supported_starts.empty()) { \
+                      Polylines arc_paths = this->generate_arc_paths(overhang, supported_starts); \
+                      for (const Polyline& path : arc_paths) { \
+                          ExtrusionLoop eloop(extrusion_role::erOverhangPerimeter); \
+                          eloop.paths.emplace_back( \
+                              ExtrusionPath( \
+                                  extrusion_role::erOverhangPerimeter, \
+                                  m_mm3_per_mm, \
+                                  this->m_perimeter_flow->width(), \
+                                  m_layer_height)); \
+                          eloop.paths.back().polyline = path; \
+                          m_out.emplace_back(eloop); \
+                      } \
+                  } else { \
+                      // Fallback to standard perimeter – because even overhangs can be tragic sometimes. \
+                      ExtrusionLoop eloop(extrusion_role::erPerimeter); \
+                      eloop.paths.emplace_back( \
+                          ExtrusionPath( \
+                              extrusion_role::erPerimeter, \
+                              m_mm3_per_mm, \
+                              this->m_perimeter_flow->width(), \
+                              m_layer_height)); \
+                      eloop.paths.back().polyline = overhang.polyline(); \
+                      m_out.emplace_back(eloop); \
+                  } \
+              } \
+          } \
+          \n    // -- End Arc Overhang Integration --' "$FILE_PG"
       - name: Modify GCode.cpp (Arc Overhang Support in extrude_loop)
         run: |
           FILE_GC="src/libslic3r/GCode.cpp"
@@ -128,7 +185,6 @@ jobs:
               gcode += this->set_fan(original_fan, true); \
               m_current_speed = original_speed; \
           } else {' "$FILE_GC"
-
       - name: Modify PrintConfig.cpp (GUI Settings)
         run: |
           FILE_PC="src/libslic3r/PrintConfig.cpp"
@@ -160,15 +216,21 @@ jobs:
           def->min = 0; \
           def->default_value = new ConfigOptionFloat(5.0); \
           \n    // --- End Arc Overhang Settings ---' "$FILE_PC"
-
+      - name: Modify GUI ConfigWizard.cpp (GUI Option)
+        run: |
+          GUI_FILE="src/libslic3r/GUI/ConfigWizard.cpp"
+          if ! grep -q "arc_overhang" "$GUI_FILE"; then
+            echo 'Adding GUI option for Arc Overhang...'
+            sed -i '/add_option("enable_arc_overhang",/c\
+            add_option("enable_arc_overhang", _("Enable Arc Overhang"), "", false);' "$GUI_FILE"
+          fi
       - name: Cache CMake Build
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
           path: build
           key: cmake-build-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
             cmake-build-${{ runner.os }}-
-
       - name: Configure CMake
         run: |
           cmake -B build -S . \
@@ -177,22 +239,17 @@ jobs:
             -DUSE_GUI=ON \
             -DENABLE_MULTITHREADING=ON \
             -DENABLE_LOGGING=ON \
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-            -DCMAKE_INCLUDE_PATH=/usr/include
-
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
       - name: Build Project
         run: |
           cmake --build build --parallel $(nproc)
-
       - name: Run Tests
         run: |
           cd build
           ctest --output-on-failure
-
       - name: Verify Code Formatting
         run: |
           clang-format --dry-run --Werror $(find . -name '*.cpp' -o -name '*.h')
-
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
