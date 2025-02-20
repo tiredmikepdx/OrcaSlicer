@@ -224,9 +224,9 @@ jobs:
           def->default_value = new ConfigOptionFloat(5.0); \
           \n    // --- End Arc Overhang Settings ---' "$FILE_PC"
 
-      - name: Modify GUI ConfigWizard.cpp (GUI Option) # Corrected path
+      - name: Modify GUI ConfigWizard.cpp (GUI Option) # Corrected filename
         run: |
-          GUI_FILE="src/ConfigWizard.cpp" # Corrected file path
+          GUI_FILE="src/ConfigWizard.cpp" # Corrected filename capitalization (Wizard)
           if ! grep -q "arc_overhang" "$GUI_FILE"; then
             echo 'Adding GUI option for Arc Overhang...'
             sed -i '/add_option("enable_arc_overhang",/c\
