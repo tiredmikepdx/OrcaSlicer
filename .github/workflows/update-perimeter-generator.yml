@@ -29,9 +29,10 @@ jobs:
           libdbus-1-dev libboost-all-dev \
           qtbase5-dev qtchooser qt5-qmake libqt5svg5-dev \
           libgl1-mesa-dev libglu1-mesa-dev \
-          libcurl4-openssl-dev libtbb-dev
+          libcurl4-openssl-dev libtbb-dev \
+          libpng-dev libeigen3-dev
 
-    - name: Modify PerimeterGenerator.cpp
+    - name: Modify PerimeterGenerator.cpp (Arc Overhang Logic)
       run: |
         FILE="src/libslic3r/PerimeterGenerator.cpp"
 
@@ -86,44 +87,39 @@ jobs:
             print "}"; \
         }1' "$FILE" > temp && mv temp "$FILE"
 
-    - name: Modify PrintConfig.cpp (GUI Enhancements)
+    - name: Modify GCode.cpp (GCode Arc Overhangs)
       run: |
-        FILE="src/libslic3r/PrintConfig.cpp"
+        FILE="src/libslic3r/GCode.cpp"
 
-        # Add GUI controls for Arc Overhangs in Print Settings
-        sed -i '/void PrintConfigDef::init_common_params()/a\
-        def = this->add("enable_arc_overhangs", coBool);\
-        def->label = "Enable Arc Overhangs";\
-        def->category = "Arc Overhangs";\
-        def->tooltip = "Enable printing overhangs with expanding arcs to reduce support material.";\
-        def->default_value = new ConfigOptionBool(false);\
-        \
-        def = this->add("arc_overhang_temperature", coInt);\
-        def->label = "Arc Overhang Temperature";\
-        def->category = "Arc Overhangs";\
-        def->tooltip = "Temperature for arc overhangs (degrees C). Lower values reduce warping.";\
-        def->min = 0;\
-        def->default_value = new ConfigOptionInt(195);\
-        \
-        def = this->add("arc_overhang_fan_speed", coInt);\
-        def->label = "Arc Overhang Fan Speed";\
-        def->category = "Arc Overhangs";\
-        def->tooltip = "Fan speed for arc overhangs (0-255). Higher speeds improve cooling.";\
-        def->min = 0;\
-        def->max = 255;\
-        def->default_value = new ConfigOptionInt(255);\
-        \
-        def = this->add("arc_overhang_speed", coFloat);\
-        def->label = "Arc Overhang Speed";\
-        def->category = "Arc Overhangs";\
-        def->tooltip = "Speed for arc overhangs (mm/s). Slower speeds enhance precision.";\
-        def->min = 0;\
-        def->default_value = new ConfigOptionFloat(5.0);' "$FILE"
+        sed -i '/std::string GCode::extrude_loop/a\
+        bool is_arc_overhang = (loop.role() == erOverhangPerimeter && m_config->enable_arc_overhangs.value);\
+        if (is_arc_overhang) {\
+            int original_temp = m_writer.get_temperature();\
+            int original_fan = m_last_fan_speed;\
+            double original_speed = m_current_speed;\
+            gcode += this->set_temperature(m_config->arc_overhang_temperature.value, false, m_writer.extruder()->id());\
+            gcode += this->set_fan(m_config->arc_overhang_fan_speed.value, true);\
+            double arc_speed = m_config->arc_overhang_speed.value * 60;\
+            Point start = loop_copy.polyline.points.front();\
+            gcode += this->travel_to_xy(Vec2d(unscale<double>(start.x), unscale<double>(start.y)), "move to start of arc overhang", m_config->travel_speed.value * 60);\
+            double total_e = 0.0;\
+            Point last = start;\
+            for (size_t i = 1; i < loop_copy.polyline.points.size(); ++i) {\
+                Point current = loop_copy.polyline.points[i];\
+                double segment_length = last.distance_to(current) * SCALING_FACTOR;\
+                total_e += segment_length * e_per_mm;\
+                gcode += this->_extrude_to_xy(Vec2d(unscale<double>(current.x), unscale<double>(current.y)), total_e, arc_speed, description);\
+                last = current;\
+            }\
+            gcode += this->set_temperature(original_temp, false, m_writer.extruder()->id());\
+            gcode += this->set_fan(original_fan, true);\
+            m_current_speed = original_speed;\
+        }' "$FILE"
 
     - name: Commit and push changes
       uses: EndBug/add-and-commit@v9.1.4
       with:
-        message: 'Integrated Arc Overhang Enhancements & GUI Settings'
+        message: 'Integrated Arc Overhang Enhancements & GUI Settings & GCode Changes'
         push: true
 
     - name: Build and test
