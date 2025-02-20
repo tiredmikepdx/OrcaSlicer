@@ -67,6 +67,9 @@ jobs:
       - name: SimpleDebugStep # Simplified Debugging Step
         run: pwd # Added back the pwd command
 
+      - name: Debug: List GUI Directory Contents # NEW DEBUG STEP
+        run: ls -l src/slic3r/GUI/
+
       - name: Modify GUI ConfigWizard.cpp (GUI Option) # Using simplified sed command
         run: |
           GUI_FILE="src/slic3r/GUI/ConfigWizard.cpp"
