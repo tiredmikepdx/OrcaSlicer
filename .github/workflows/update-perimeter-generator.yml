@@ -21,17 +21,13 @@ jobs:
           git config --global user.name 'GitHub Actions'
           git config --global user.email 'actions@github.com'
 
-      - name: Cache Dependencies
-        id: cache-dependencies
+      - name: Cache CMake Build
         uses: actions/cache@v4
         with:
-          path: /etc/apt/archives
-          key: apt-packages-${{ runner.os }}-${{ hashFiles('apt-packages.txt') }}
-          restore-keys: apt-packages-${{ runner.os }}-
-
-      - name: Log Cache Miss
-        if: steps.cache-dependencies.outputs.cache-hit != 'true'
-        run: echo "⚠️ Cache not found for apt packages. This run may take longer due to dependency re-installation."
+          path: build
+          key: cmake-build-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            cmake-build-${{ runner.os }}-
 
       - name: Install Dependencies
         run: |
@@ -64,37 +60,27 @@ jobs:
             git-lfs \
             libcereal-dev
 
-      - name: Debug: List GUI Directory # Debugging Step
+      - name: Debug: List GUI Directory
         run: |
           pwd
           ls -l src/slic3r/GUI/
 
-      - name: Modify GUI ConfigWizard.cpp (GUI Option) # Using separate script file
+      - name: Modify GUI ConfigWizard.cpp (GUI Option)
         run: |
           GUI_FILE="src/slic3r/GUI/ConfigWizard.cpp"
-
-          # Create a separate script file to perform the sed command
-          echo '#!/bin/bash' > modify_gui_config.sh
-          echo "if ! grep -q 'arc_overhang' \"\$GUI_FILE\"; then" >> modify_gui_config.sh
-          echo "  echo 'Adding GUI option for Arc Overhang...'" >> modify_gui_config.sh
-          echo "  sed -i '/add_option(\"enable_arc_overhang\",/c\\\\" >> modify_gui_config.sh
-          echo "            add_option(\"enable_arc_overhang\", _(\"Enable Arc Overhang\"), \"\", false);' \"\$GUI_FILE\"" >> modify_gui_config.sh
-          echo "fi" >> modify_gui_config.sh
-          chmod +x modify_gui_config.sh
-
-          # Execute the separate script
-          ./modify_gui_config.sh
+          if ! grep -q 'arc_overhang' "$GUI_FILE"; then
+            echo 'Adding GUI option for Arc Overhang...'
+            sed -i '/add_option("enable_arc_overhang",/c\add_option("enable_arc_overhang", _("Enable Arc Overhang"), "", false);' "$GUI_FILE"
+          fi
 
       - name: Modify PerimeterGenerator.cpp (Arc Overhang Logic & Threshold)
         run: |
           FILE_PG="src/libslic3r/PerimeterGenerator.cpp"
-
-          # Modify threshold_external calculation using 'r' for replace
-          sed -i 's|coord_t threshold_external = 0.0;|const float expand_factor = 1.03f;\\ncoord_t threshold_external = 0.0;\\nif (apply_precise_outer_wall) {\\n    threshold_external = this->ext_perimeter_flow.scaled_spacing() + (this->perimeter_flow.scaled_spacing() / 2.0);\\n} else {\\n    threshold_external = (this->ext_perimeter_flow.scaled_spacing() / 2.0) + (this->perimeter_flow.scaled_spacing() / 2.0);\\n}\\nthreshold_external *= expand_factor;|g' "$FILE_PG"
-
-          # Insert Arc Overhang helper functions before the closing namespace
+          # Modify threshold_external calculation
+          sed -i 's|coord_t threshold_external = 0.0;|const float expand_factor = 1.03f;\ncoord_t threshold_external = 0.0;\nif (apply_precise_outer_wall) {\n    threshold_external = this->ext_perimeter_flow.scaled_spacing() + (this->perimeter_flow.scaled_spacing() / 2.0);\n} else {\n    threshold_external = (this->ext_perimeter_flow.scaled_spacing() / 2.0) + (this->perimeter_flow.scaled_spacing() / 2.0);\n}\nthreshold_external *= expand_factor;|g' "$FILE_PG"
+          # Insert helper functions before namespace closure
           awk '/} \/\/ namespace Slic3r/ { \
-              print "\\n// --- New Helper Functions for Arc Overhangs ---"; \
+              print "\n// --- New Helper Functions for Arc Overhangs ---"; \
               print "bool PerimeterGenerator::is_point_supported(const Point& pt, const Polygons& lower_layer) {"; \
               print "    const coord_t tolerance = scale_(0.1);"; \
               print "    Polygon buffer = offset(Polygon({pt}), tolerance)[0];"; \
@@ -113,11 +99,11 @@ jobs:
               print "    Polylines arc_paths;"; \
               print "    const double arc_step_size = scale_(0.2);"; \
               print "    const double max_radius = scale_(40.0);"; \
-              print "    for (const Point& start in start_points) {"; \
+              print "    for (const Point& start : start_points) {"; \
               print "        Polyline arc_path;"; \
               print "        arc_path.points.push_back(start);"; \
               print "        double current_offset = arc_step_size;"; \
-              print "        while (current_offset <= max_radius) { "; \
+              print "        while (current_offset <= max_radius) {"; \
               print "            Polygons offset_perimeter = offset(overhang, current_offset);"; \
               print "            if (offset_perimeter.empty()) break;"; \
               print "            Point next_point = offset_perimeter[0].closest_point(start);"; \
@@ -131,8 +117,7 @@ jobs:
               print "    return arc_paths;"; \
               print "}"; \
           }1' "$FILE_PG"
-
-          # Integrate Arc Overhang logic inside process() in PerimeterGenerator.cpp
+          # Integrate Arc Overhang logic inside process()
           sed -i '/    } \/\/ end if/a \
           \n    // -- Begin Arc Overhang Integration -- \
           if (this->m_print_config->enable_arc_overhangs) { \
@@ -153,7 +138,7 @@ jobs:
                           m_out.emplace_back(eloop); \
                       } \
                   } else { \
-                      // Fallback to standard perimeter – because even overhangs can be tragic sometimes. \
+                      // Fallback to standard perimeter \
                       ExtrusionLoop eloop(extrusion_role::erPerimeter); \
                       eloop.paths.emplace_back( \
                           ExtrusionPath( \
@@ -172,7 +157,7 @@ jobs:
       - name: Modify GCode.cpp (Arc Overhang Support in extrude_loop)
         run: |
           FILE_GC="src/libslic3r/GCode.cpp"
-          # Integrate Arc Overhang settings into extrude_loop in GCode.cpp
+          # Integrate Arc Overhang settings into extrude_loop
           sed -i '/\/\/ --- Original Extrusion Logic ---/i \
           \n    bool is_arc_overhang = (loop.role() == erOverhangPerimeter && m_config->enable_arc_overhangs.value); \
           if (is_arc_overhang) { \
@@ -210,7 +195,7 @@ jobs:
       - name: Modify PrintConfig.cpp (GUI Settings)
         run: |
           FILE_PC="src/libslic3r/PrintConfig.cpp"
-          # Add Arc Overhang settings to init_common_params in PrintConfig.cpp
+          # Add Arc Overhang settings to init_common_params
           sed -i '/\/\/ \[Rest of the configuration settings...\]/i \
           \n    // --- Begin Arc Overhang Settings --- \
           ConfigOptionDef* def = this->add("enable_arc_overhangs", coBool); \
@@ -238,30 +223,6 @@ jobs:
           def->min = 0; \
           def->default_value = new ConfigOptionFloat(5.0); \
           \n    // --- End Arc Overhang Settings ---' "$FILE_PC"
-
-      - name: Modify GUI ConfigWizard.cpp (GUI Option) # Using separate script file
-        run: |
-          GUI_FILE="src/slic3r/GUI/ConfigWizard.cpp"
-
-          # Create a separate script file to perform the sed command
-          echo '#!/bin/bash' > modify_gui_config.sh
-          echo "if ! grep -q 'arc_overhang' \"\$GUI_FILE\"; then" >> modify_gui_config.sh
-          echo "  echo 'Adding GUI option for Arc Overhang...'" >> modify_gui_config.sh
-          echo "  sed -i '/add_option(\"enable_arc_overhang\",/c\\\\" >> modify_gui_config.sh
-          echo "            add_option(\"enable_arc_overhang\", _(\"Enable Arc Overhang\"), \"\", false);' \"\$GUI_FILE\"" >> modify_gui_config.sh
-          echo "fi" >> modify_gui_config.sh
-          chmod +x modify_gui_config.sh
-
-          # Execute the separate script
-          ./modify_gui_config.sh
-
-      - name: Cache CMake Build
-        uses: actions/cache@v4
-        with:
-          path: build
-          key: cmake-build-${{ runner.os }}-${{ github.sha }}
-          restore-keys: |
-            cmake-build-${{ runner.os }}-
 
       - name: Configure CMake
         run: |
