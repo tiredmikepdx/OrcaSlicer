@@ -61,7 +61,8 @@ jobs:
             libfreetype6-dev \
             libzip-dev \
             gettext \
-            git-lfs
+            git-lfs \
+            libcereal-dev
 
       - name: Modify PerimeterGenerator.cpp (Arc Overhang Logic & Threshold)
         run: |
@@ -231,7 +232,6 @@ jobs:
             echo 'Adding GUI option for Arc Overhang...'
             sed -i '/add_option("enable_arc_overhang",/c\
             add_option("enable_arc_overhang", _("Enable Arc Overhang"), "", false);' "$GUI_FILE"
-          fi
 
       - name: Cache CMake Build
         uses: actions/cache@v3
@@ -249,7 +249,8 @@ jobs:
             -DUSE_GUI=ON \
             -DENABLE_MULTITHREADING=ON \
             -DENABLE_LOGGING=ON \
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DCMAKE_INCLUDE_PATH=/usr/include # Explicitly add /usr/include
 
       - name: Build Project
         run: |
