@@ -23,7 +23,7 @@ jobs:
 
       - name: Cache Dependencies
         id: cache-dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4 # Upgraded to v4
         with:
           path: /etc/apt/archives
           key: apt-packages-${{ runner.os }}-${{ hashFiles('apt-packages.txt') }}
@@ -64,8 +64,8 @@ jobs:
             git-lfs \
             libcereal-dev
 
-      - name: Debug: List GUI Directory # Debugging Step - YAML syntax corrected!
-        run: | # Corrected YAML syntax - added pipe symbol!
+      - name: Debug: List GUI Directory # Debugging Step
+        run: |
           pwd
           ls -l src/slic3r/GUI/
 
