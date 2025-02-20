@@ -85,6 +85,175 @@ jobs:
           # Execute the separate script
           ./modify_gui_config.sh
 
+      - name: Modify PerimeterGenerator.cpp (Arc Overhang Logic & Threshold)
+        run: |
+          FILE_PG="src/libslic3r/PerimeterGenerator.cpp"
+
+          # Modify threshold_external calculation using 'r' for replace
+          sed -i 's|coord_t threshold_external = 0.0;|const float expand_factor = 1.03f;\\ncoord_t threshold_external = 0.0;\\nif (apply_precise_outer_wall) {\\n    threshold_external = this->ext_perimeter_flow.scaled_spacing() + (this->perimeter_flow.scaled_spacing() / 2.0);\\n} else {\\n    threshold_external = (this->ext_perimeter_flow.scaled_spacing() / 2.0) + (this->perimeter_flow.scaled_spacing() / 2.0);\\n}\\nthreshold_external *= expand_factor;|g' "$FILE_PG"
+
+          # Insert Arc Overhang helper functions before the closing namespace
+          awk '/} \/\/ namespace Slic3r/ { \
+              print "\\n// --- New Helper Functions for Arc Overhangs ---"; \
+              print "bool PerimeterGenerator::is_point_supported(const Point& pt, const Polygons& lower_layer) {"; \
+              print "    const coord_t tolerance = scale_(0.1);"; \
+              print "    Polygon buffer = offset(Polygon({pt}), tolerance)[0];"; \
+              print "    return !intersection(buffer, lower_layer).empty();"; \
+              print "}"; \
+              print "std::vector<Point> PerimeterGenerator::find_supported_starts(const Polygon& perimeter, const Polygons& lower_layer) {"; \
+              print "    std::vector<Point> supported_starts;"; \
+              print "    for (const Point& pt : perimeter.points) {"; \
+              print "        if (this->is_point_supported(pt, lower_layer)) {"; \
+              print "            supported_starts.push_back(pt);"; \
+              print "        }"; \
+              print "    }"; \
+              print "    return supported_starts;"; \
+              print "}"; \
+              print "Polylines PerimeterGenerator::generate_arc_paths(const Polygon& overhang, const std::vector<Point>& start_points) {"; \
+              print "    Polylines arc_paths;"; \
+              print "    const double arc_step_size = scale_(0.2);"; \
+              print "    const double max_radius = scale_(40.0);"; \
+              print "    for (const Point& start in start_points) {"; \
+              print "        Polyline arc_path;"; \
+              print "        arc_path.points.push_back(start);"; \
+              print "        double current_offset = arc_step_size;"; \
+              print "        while (current_offset <= max_radius) { "; \
+              print "            Polygons offset_perimeter = offset(overhang, current_offset);"; \
+              print "            if (offset_perimeter.empty()) break;"; \
+              print "            Point next_point = offset_perimeter[0].closest_point(start);"; \
+              print "            arc_path.points.push_back(next_point);"; \
+              print "            current_offset += arc_step_size;"; \
+              print "        }"; \
+              print "        if (arc_path.points.size() > 1) {"; \
+              print "            arc_paths.push_back(arc_path);"; \
+              print "        }"; \
+              print "    }"; \
+              print "    return arc_paths;"; \
+              print "}"; \
+          }1' "$FILE_PG"
+
+          # Integrate Arc Overhang logic inside process() in PerimeterGenerator.cpp
+          sed -i '/    } \/\/ end if/a \
+          \n    // -- Begin Arc Overhang Integration -- \
+          if (this->m_print_config->enable_arc_overhangs) { \
+              Polygons overhang_perimeters = diff(perimeters_to_process, lower_layer_perimeters); \
+              for (const Polygon& overhang : overhang_perimeters) { \
+                  std::vector<Point> supported_starts = this->find_supported_starts(overhang, lower_layer_perimeters); \
+                  if (!supported_starts.empty()) { \
+                      Polylines arc_paths = this->generate_arc_paths(overhang, supported_starts); \
+                      for (const Polyline& path : arc_paths) { \
+                          ExtrusionLoop eloop(extrusion_role::erOverhangPerimeter); \
+                          eloop.paths.emplace_back( \
+                              ExtrusionPath( \
+                                  extrusion_role::erOverhangPerimeter, \
+                                  m_mm3_per_mm, \
+                                  this->m_perimeter_flow->width(), \
+                                  m_layer_height)); \
+                          eloop.paths.back().polyline = path; \
+                          m_out.emplace_back(eloop); \
+                      } \
+                  } else { \
+                      // Fallback to standard perimeter – because even overhangs can be tragic sometimes. \
+                      ExtrusionLoop eloop(extrusion_role::erPerimeter); \
+                      eloop.paths.emplace_back( \
+                          ExtrusionPath( \
+                              extrusion_role::erPerimeter, \
+                              m_mm3_per_mm, \
+                              this->m_perimeter_flow->width(), \
+                              m_layer_height)); \
+                      eloop.paths.back().polyline = overhang.polyline(); \
+                      m_out.emplace_back(eloop); \
+                  } \
+              } \
+          } \
+          \n    // -- End Arc Overhang Integration --' "$FILE_PG"
+
+      - name: Modify GCode.cpp (Arc Overhang Support in extrude_loop)
+        run: |
+          FILE_GC="src/libslic3r/GCode.cpp"
+          # Integrate Arc Overhang settings into extrude_loop in GCode.cpp
+          sed -i '/\/\/ --- Original Extrusion Logic ---/i \
+          \n    bool is_arc_overhang = (loop.role() == erOverhangPerimeter && m_config->enable_arc_overhangs.value); \
+          if (is_arc_overhang) { \
+              int original_temp = m_writer.get_temperature(); \
+              int original_fan = m_last_fan_speed; \
+              double original_speed = m_current_speed; \
+          \n        gcode += this->set_temperature(m_config->arc_overhang_temperature.value, false, m_writer.extruder()->id()); \
+              gcode += this->set_fan(m_config->arc_overhang_fan_speed.value, true); \
+              double arc_speed = m_config->arc_overhang_speed.value * 60; // mm/s to mm/min \
+          \n        // Move to start point \
+              Point start = loop_copy.polyline.points.front(); \
+              gcode += this->travel_to_xy(Vec2d(unscale<double>(start.x), unscale<double>(start.y)), "move to start of arc overhang", m_config->travel_speed.value * 60); \
+          \n        // Precise extrusion \
+              double path_length_3d = unscale<double>(loop_copy.polyline.length()); \
+              double e_per_mm = loop_copy.paths.front().mm3_per_mm / (loop_copy.paths.front().width * loop_copy.paths.front().height); \
+              double total_e = 0.0; \
+              Point last = start; \
+          \n        for (size_t i = 1; i < loop_copy.polyline.points.size(); ++i) { \
+                  Point current = loop_copy.polyline.points[i]; \
+                  double segment_length = last.distance_to(current) * SCALING_FACTOR; \
+                  total_e += segment_length * e_per_mm; \
+                  gcode += this->_extrude_to_xy( \
+                      Vec2d(unscale<double>(current.x), unscale<double>(current.y)), \
+                      total_e, \
+                      arc_speed, \
+                      description); \
+                  last = current; \
+              } \
+          \n        // Restore settings \
+              gcode += this->set_temperature(original_temp, false, m_writer.extruder()->id()); \
+              gcode += this->set_fan(original_fan, true); \
+              m_current_speed = original_speed; \
+          } else {' "$FILE_GC"
+
+      - name: Modify PrintConfig.cpp (GUI Settings)
+        run: |
+          FILE_PC="src/libslic3r/PrintConfig.cpp"
+          # Add Arc Overhang settings to init_common_params in PrintConfig.cpp
+          sed -i '/\/\/ \[Rest of the configuration settings...\]/i \
+          \n    // --- Begin Arc Overhang Settings --- \
+          ConfigOptionDef* def = this->add("enable_arc_overhangs", coBool); \
+          def->label = "Enable Arc Overhangs"; \
+          def->category = "Arc Overhangs"; \
+          def->tooltip = "Enable printing overhangs with expanding arcs to reduce support material."; \
+          def->default_value = new ConfigOptionBool(false); \
+          \n    def = this->add("arc_overhang_temperature", coInt); \
+          def->label = "Arc Overhang Temperature"; \
+          def->category = "Arc Overhangs"; \
+          def->tooltip = "Temperature for arc overhangs (degrees C). Lower values reduce warping."; \
+          def->min = 0; \
+          def->default_value = new ConfigOptionInt(195); \
+          \n    def = this->add("arc_overhang_fan_speed", coInt); \
+          def->label = "Arc Overhang Fan Speed"; \
+          def->category = "Arc Overhangs"; \
+          def->tooltip = "Fan speed for arc overhangs (0-255). Higher speeds improve cooling."; \
+          def->min = 0; \
+          def->max = 255; \
+          def->default_value = new ConfigOptionInt(255); \
+          \n    def = this->add("arc_overhang_speed", coFloat); \
+          def->label = "Arc Overhang Speed"; \
+          def->category = "Arc Overhangs"; \
+          def->tooltip = "Speed for arc overhangs (mm/s). Slower speeds enhance precision."; \
+          def->min = 0; \
+          def->default_value = new ConfigOptionFloat(5.0); \
+          \n    // --- End Arc Overhang Settings ---' "$FILE_PC"
+
+      - name: Modify GUI ConfigWizard.cpp (GUI Option) # Using separate script file
+        run: |
+          GUI_FILE="src/slic3r/GUI/ConfigWizard.cpp"
+
+          # Create a separate script file to perform the sed command
+          echo '#!/bin/bash' > modify_gui_config.sh
+          echo "if ! grep -q 'arc_overhang' \"\$GUI_FILE\"; then" >> modify_gui_config.sh
+          echo "  echo 'Adding GUI option for Arc Overhang...'" >> modify_gui_config.sh
+          echo "  sed -i '/add_option(\"enable_arc_overhang\",/c\\\\" >> modify_gui_config.sh
+          echo "            add_option(\"enable_arc_overhang\", _(\"Enable Arc Overhang\"), \"\", false);' \"\$GUI_FILE\"" >> modify_gui_config.sh
+          echo "fi" >> modify_gui_config.sh
+          chmod +x modify_gui_config.sh
+
+          # Execute the separate script
+          ./modify_gui_config.sh
+
       - name: Cache CMake Build
         uses: actions/cache@v3
         with:
