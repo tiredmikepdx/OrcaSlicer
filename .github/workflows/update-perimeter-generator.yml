@@ -1,0 +1,100 @@
+name: Update PerimeterGenerator.cpp with Arc Overhangs
+
+on:
+  workflow_dispatch:  # Allows you to run manually from GitHub UI
+
+permissions:
+  contents: write  # Allow modifying files in the repo
+
+jobs:
+  update-file:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4  # Fetch the repository code
+
+      - name: Modify PerimeterGenerator.cpp
+        run: |
+          FILE="src/libslic3r/PerimeterGenerator.cpp"
+
+          # Insert new helper functions before closing namespace
+          sed -i '/} \/\/ namespace Slic3r/i \
+          // --- New Helper Functions for Arc Overhangs --- \
+          bool PerimeterGenerator::is_point_supported(const Point& pt, const Polygons& lower_layer) { \
+              const coord_t tolerance = scale_(0.1); // 0.1mm tolerance \
+              Polygon buffer = offset(Polygon({pt}), tolerance)[0]; \
+              return !intersection(buffer, lower_layer).empty(); \
+          } \
+          std::vector<Point> PerimeterGenerator::find_supported_starts(const Polygon& perimeter, const Polygons& lower_layer) { \
+              std::vector<Point> supported_starts; \
+              for (const Point& pt : perimeter.points) { \
+                  if (this->is_point_supported(pt, lower_layer)) { \
+                      supported_starts.push_back(pt); \
+                  } \
+              } \
+              return supported_starts; \
+          } \
+          Polylines PerimeterGenerator::generate_arc_paths(const Polygon& overhang, const std::vector<Point>& start_points) { \
+              Polylines arc_paths; \
+              const double arc_step_size = scale_(0.2); // 0.2mm step \
+              const double max_radius = scale_(40.0);   // 40mm max radius \
+              for (const Point& start : start_points) { \
+                  Polyline arc_path; \
+                  arc_path.points.push_back(start); \
+                  double current_offset = arc_step_size; \
+                  while (current_offset <= max_radius) { \
+                      Polygons offset_perimeter = offset(overhang, current_offset); \
+                      if (offset_perimeter.empty()) break; \
+                      Point next_point = offset_perimeter[0].closest_point(start); \
+                      arc_path.points.push_back(next_point); \
+                      current_offset += arc_step_size; \
+                  } \
+                  if (arc_path.points.size() > 1) { \
+                      arc_paths.push_back(arc_path); \
+                  } \
+              } \
+              return arc_paths; \
+          }' $FILE
+
+          # Modify process() function to add Arc Overhang Handling
+          sed -i '/if (this->m_object_config->perimeters.value > 0) {/a \
+          // --- Arc Overhang Handling --- \
+          if (this->m_print_config->enable_arc_overhangs) { \
+              Polygons overhang_perimeters = diff(perimeters_to_process, lower_layer_perimeters); \
+              for (const Polygon& overhang : overhang_perimeters) { \
+                  std::vector<Point> supported_starts = this->find_supported_starts(overhang, lower_layer_perimeters); \
+                  if (!supported_starts.empty()) { \
+                      Polylines arc_paths = this->generate_arc_paths(overhang, supported_starts); \
+                      for (const Polyline& path : arc_paths) { \
+                          ExtrusionLoop eloop(extrusion_role::erOverhangPerimeter); \
+                          eloop.paths.emplace_back( \
+                              ExtrusionPath( \
+                                  extrusion_role::erOverhangPerimeter, \
+                                  m_mm3_per_mm, \
+                                  this->m_perimeter_flow->width(), \
+                                  m_layer_height)); \
+                          eloop.paths.back().polyline = path; \
+                          m_out.emplace_back(eloop); \
+                      } \
+                  } else { \
+                      ExtrusionLoop eloop(extrusion_role::erPerimeter); \
+                      eloop.paths.emplace_back( \
+                          ExtrusionPath( \
+                              extrusion_role::erPerimeter, \
+                              m_mm3_per_mm, \
+                              this->m_perimeter_flow->width(), \
+                              m_layer_height)); \
+                      eloop.paths.back().polyline = overhang.polyline(); \
+                      m_out.emplace_back(eloop); \
+                  } \
+              } \
+          } \
+          // --- End Arc Overhang Handling ---' $FILE
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/libslic3r/PerimeterGenerator.cpp
+          git commit -m "Automated: Integrated Arc Overhang enhancements"
+          git push origin main
