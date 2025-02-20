@@ -161,8 +161,9 @@ jobs:
                               m_mm3_per_mm, \
                               this->m_perimeter_flow->width(), \
                               m_layer_height)); \
-                      eloop.paths.back().polyline = overhang.polyline(); \
-                      m_out.emplace_back(eloop); \
+                          eloop.paths.back().polyline = overhang.polyline(); \
+                          m_out.emplace_back(eloop); \
+                      } \
                   } \
               } \
           } \
