@@ -450,6 +450,33 @@ PrintConfigDef::PrintConfigDef()
 }
 
 void PrintConfigDef::init_common_params()
+def = this->add("enable_arc_overhangs", coBool);
+def->label = "Enable Arc Overhangs";
+def->category = "Arc Overhangs";
+def->tooltip = "Enable printing overhangs with expanding arcs to reduce support material.";
+def->default_value = new ConfigOptionBool(false);
+
+def = this->add("arc_overhang_temperature", coInt);
+def->label = "Arc Overhang Temperature";
+def->category = "Arc Overhangs";
+def->tooltip = "Temperature for arc overhangs (degrees C). Lower values reduce warping.";
+def->min = 0;
+def->default_value = new ConfigOptionInt(195);
+
+def = this->add("arc_overhang_fan_speed", coInt);
+def->label = "Arc Overhang Fan Speed";
+def->category = "Arc Overhangs";
+def->tooltip = "Fan speed for arc overhangs (0-255). Higher speeds improve cooling.";
+def->min = 0;
+def->max = 255;
+def->default_value = new ConfigOptionInt(255);
+
+def = this->add("arc_overhang_speed", coFloat);
+def->label = "Arc Overhang Speed";
+def->category = "Arc Overhangs";
+def->tooltip = "Speed for arc overhangs (mm/s). Slower speeds enhance precision.";
+def->min = 0;
+def->default_value = new ConfigOptionFloat(5.0);
 {
     ConfigOptionDef* def;
 
