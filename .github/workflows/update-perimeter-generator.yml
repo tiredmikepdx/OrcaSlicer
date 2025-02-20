@@ -26,7 +26,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /etc/apt/archives
-          key: apt-packages-${{ runner.os }}-${{ hashFiles('apt-packages.txt') }}
+          key: "apt-packages-${{ runner.os }}-${{ hashFiles('apt-packages.txt') }}" # Enclosed key in double quotes
           restore-keys: apt-packages-${{ runner.os }}-
 
       - name: Log Cache Miss
@@ -64,10 +64,8 @@ jobs:
             git-lfs \
             libcereal-dev
 
-      - name: Debug: List GUI Directory # Debugging Step
-        run: |
-          pwd
-          ls -l src/slic3r/GUI/
+      - name: SimpleDebugStep # Simplified Debugging Step
+        run: # Empty run block
 
       - name: Modify GUI ConfigWizard.cpp (GUI Option) # Using separate script file
         run: |
@@ -77,8 +75,8 @@ jobs:
           echo '#!/bin/bash' > modify_gui_config.sh
           echo "if ! grep -q 'arc_overhang' \"\$GUI_FILE\"; then" >> modify_gui_config.sh
           echo "  echo 'Adding GUI option for Arc Overhang...'" >> modify_gui_config.sh
-          echo "  sed -i '/add_option(\"enable_arc_overhang\",/c\\\\" >> modify_gui_config.sh
-          echo "            add_option(\"enable_arc_overhang\", _(\"Enable Arc Overhang\"), \"\", false);' \"\$GUI_FILE\"" >> modify_gui_config.sh
+          echo '  sed -i "/add_option(\\\"enable_arc_overhang\\\",/c\\\\" ' >> modify_gui_config.sh
+          echo '            add_option(\"enable_arc_overhang\", _(\"Enable Arc Overhang\"), \"\", false);\' "\$GUI_FILE"' >> modify_gui_config.sh
           echo "fi" >> modify_gui_config.sh
           chmod +x modify_gui_config.sh
 
@@ -247,8 +245,8 @@ jobs:
           echo '#!/bin/bash' > modify_gui_config.sh
           echo "if ! grep -q 'arc_overhang' \"\$GUI_FILE\"; then" >> modify_gui_config.sh
           echo "  echo 'Adding GUI option for Arc Overhang...'" >> modify_gui_config.sh
-          echo "  sed -i '/add_option(\"enable_arc_overhang\",/c\\\\" >> modify_gui_config.sh
-          echo "            add_option(\"enable_arc_overhang\", _(\"Enable Arc Overhang\"), \"\", false);' \"\$GUI_FILE\"" >> modify_gui_config.sh
+          echo '  sed -i "/add_option(\\\"enable_arc_overhang\\\",/c\\\\" ' >> modify_gui_config.sh
+          echo '            add_option(\"enable_arc_overhang\", _(\"Enable Arc Overhang\"), \"\", false);\' "\$GUI_FILE"' >> modify_gui_config.sh
           echo "fi" >> modify_gui_config.sh
           chmod +x modify_gui_config.sh
 
