@@ -100,7 +100,7 @@ jobs:
               print "    Polylines arc_paths;"; \
               print "    const double arc_step_size = scale_(0.2);"; \
               print "    const double max_radius = scale_(40.0);"; \
-              print "    for (const Point& start : start_points) {"; \
+              print "    for (const Point& start in start_points) {"; \
               print "        Polyline arc_path;"; \
               print "        arc_path.points.push_back(start);"; \
               print "        double current_offset = arc_step_size;"; \
@@ -225,13 +225,21 @@ jobs:
           def->default_value = new ConfigOptionFloat(5.0); \
           \n    // --- End Arc Overhang Settings ---' "$FILE_PC"
 
-      - name: Modify GUI ConfigWizard.cpp (GUI Option) # Corrected path and filename
+      - name: Modify GUI ConfigWizard.cpp (GUI Option) # Using separate script file
         run: |
-          GUI_FILE="src/slic3r/GUI/ConfigWizard.cpp" # Accurate path and filename
-          if ! grep -q "arc_overhang" "$GUI_FILE"; then
-            echo 'Adding GUI option for Arc Overhang...'
-            sed -i '/add_option("enable_arc_overhang",/c\
-            add_option("enable_arc_overhang", _("Enable Arc Overhang"), "", false);' "$GUI_FILE"
+          GUI_FILE="src/slic3r/GUI/ConfigWizard.cpp"
+
+          # Create a separate script file to perform the sed command
+          echo '#!/bin/bash' > modify_gui_config.sh
+          echo "if ! grep -q 'arc_overhang' \"\$GUI_FILE\"; then" >> modify_gui_config.sh
+          echo "  echo 'Adding GUI option for Arc Overhang...'" >> modify_gui_config.sh
+          echo "  sed -i '/add_option(\"enable_arc_overhang\",/c\\\\" >> modify_gui_config.sh
+          echo "            add_option(\"enable_arc_overhang\", _(\"Enable Arc Overhang\"), \"\", false);' \"\$GUI_FILE\"" >> modify_gui_config.sh
+          echo "fi" >> modify_gui_config.sh
+          chmod +x modify_gui_config.sh
+
+          # Execute the separate script
+          ./modify_gui_config.sh
 
       - name: Cache CMake Build
         uses: actions/cache@v3
@@ -250,7 +258,7 @@ jobs:
             -DENABLE_MULTITHREADING=ON \
             -DENABLE_LOGGING=ON \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-            -DCMAKE_INCLUDE_PATH=/usr/include # Explicitly add /usr/include
+            -DCMAKE_INCLUDE_PATH=/usr/include
 
       - name: Build Project
         run: |
