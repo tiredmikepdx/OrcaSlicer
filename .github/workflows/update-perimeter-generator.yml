@@ -19,6 +19,14 @@ jobs:
           echo "Before modification:"
           cat $FILE
 
+          # Ensure the target pattern exists before modification
+          if grep -q "} // namespace Slic3r" $FILE; then
+            echo "Target pattern found"
+          else
+            echo "Target pattern not found"
+            exit 1
+          fi
+
           # Insert new helper functions before closing namespace
           sed -i '/} \/\/ namespace Slic3r/i \
           // --- New Helper Functions for Arc Overhangs --- \
@@ -58,6 +66,14 @@ jobs:
               return arc_paths; \
           }' $FILE
 
+          # Verify modification
+          if grep -q "New Helper Functions for Arc Overhangs" $FILE; then
+            echo "Helper functions added successfully"
+          else
+            echo "Failed to add helper functions"
+            exit 1
+          fi
+
           # Modify process() function to add Arc Overhang Handling
           sed -i '/if (this->m_object_config->perimeters.value > 0) {/a \
           // --- Arc Overhang Handling --- \
@@ -92,6 +108,14 @@ jobs:
               } \
           } \
           // --- End Arc Overhang Handling ---' $FILE
+
+          # Verify modification
+          if grep -q "Arc Overhang Handling" $FILE; then
+            echo "Arc Overhang Handling added successfully"
+          else
+            echo "Failed to add Arc Overhang Handling"
+            exit 1
+          fi
 
           echo "After modification:"
           cat $FILE
