@@ -13,9 +13,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4  # Fetch the repository code
 
-      - name: Modify PerimeterGenerator.cpp
+      - name: Debug File Modification
         run: |
           FILE="src/libslic3r/PerimeterGenerator.cpp"
+          echo "Before modification:"
+          cat $FILE
 
           # Insert new helper functions before closing namespace
           sed -i '/} \/\/ namespace Slic3r/i \
@@ -90,6 +92,9 @@ jobs:
               } \
           } \
           // --- End Arc Overhang Handling ---' $FILE
+
+          echo "After modification:"
+          cat $FILE
 
       - name: Commit and push changes
         run: |
