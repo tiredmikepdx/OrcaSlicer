@@ -253,7 +253,7 @@ jobs:
           clang-format --dry-run --Werror $(find . -name '*.cpp' -o -name '*.h')
 
       - name: Upload Build Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v3.1.0
         with:
           name: OrcaSlicer-Build
           path: build/bin/
