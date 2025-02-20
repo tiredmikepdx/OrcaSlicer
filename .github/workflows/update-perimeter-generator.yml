@@ -88,7 +88,7 @@ jobs:
           # Modify threshold_external calculation using 'r' for replace
           sed -i 's|coord_t threshold_external = 0.0;|const float expand_factor = 1.03f;\\ncoord_t threshold_external = 0.0;\\nif (apply_precise_outer_wall) {\\n    threshold_external = this->ext_perimeter_flow.scaled_spacing() + (this->perimeter_flow.scaled_spacing() / 2.0);\\n} else {\\n    threshold_external = (this->ext_perimeter_flow.scaled_spacing() / 2.0) + (this->perimeter_flow.scaled_spacing() / 2.0);\\n}\\nthreshold_external *= expand_factor;|g' "$FILE_PG"
 
-          - name: Modify GCode.cpp (Arc Overhang Support in extrude_loop)
+      - name: Modify GCode.cpp (Arc Overhang Support in extrude_loop)
         run: |
           FILE_GC="src/libslic3r/GCode.cpp"
           # Integrate Arc Overhang settings into extrude_loop in GCode.cpp
@@ -157,23 +157,6 @@ jobs:
           def->min = 0; \
           def->default_value = new ConfigOptionFloat(5.0); \
           \n    // --- End Arc Overhang Settings ---' "$FILE_PC"
-
-      - name: Modify GUI ConfigWizard.cpp (GUI Option) # Redundant step - will be removed later
-        run: |
-          GUI_FILE="src/slic3r/GUI/ConfigWizard.cpp"
-
-          # Create a separate script file to perform the sed command
-          echo '#!/bin/bash' > modify_gui_config.sh
-          echo "if ! grep -q 'arc_overhang' \"\$GUI_FILE\"; then" >> modify_gui_config.sh
-          echo "  echo 'Adding GUI option for Arc Overhang...'" >> modify_gui_config.sh
-          echo '  sed -i "/add_option(\\\"enable_arc_overhang\\\",/c\\\\" ' >> modify_gui_config.sh
-          echo '            add_option(\"enable_arc_overhang\", _(\"Enable Arc Overhang\"), \"\", false);\' "\$GUI_FILE"' >> modify_gui_config.sh
-          echo "fi" >> modify_gui_config.sh
-          chmod +x modify_gui_config.sh
-
-          # Execute the separate script
-          ./modify_gui_config.sh
-
 
       - name: Cache CMake Build
         uses: actions/cache@v4
