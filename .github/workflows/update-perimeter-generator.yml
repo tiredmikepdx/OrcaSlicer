@@ -94,8 +94,8 @@ jobs:
               print "        while (current_offset <= max_radius) {"; \
               print "            Polygons offset_perimeter = offset(overhang, current_offset);"; \
               print "            if (offset_perimeter.empty()) break;"; \
-              print "            Point next_point = offset_perimeter[0].closest_point(start);"; \
-              print "            arc_path.points.push_back(next_point);"; \
+              print "            Point next_point = offset_perimeter[0].closest_point(start); \
+              print "            arc_path.points.push_back(next_point); \
               print "            current_offset += arc_step_size;"; \
               print "        }"; \
               print "        if (arc_path.points.size() > 1) {"; \
@@ -253,7 +253,7 @@ jobs:
           clang-format --dry-run --Werror $(find . -name '*.cpp' -o -name '*.h')
 
       - name: Upload Build Artifacts
-        uses: actions/upload-artifact@v3.1.0
+        uses: actions/upload-artifact@v3.1.1
         with:
           name: OrcaSlicer-Build
           path: build/bin/
