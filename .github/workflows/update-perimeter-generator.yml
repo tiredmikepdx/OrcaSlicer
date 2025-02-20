@@ -80,10 +80,10 @@ jobs:
 
           # Insert Arc Overhang helper functions before the closing namespace
           awk '/} \/\/ namespace Slic3r/ { \
-              print "\n// --- New Helper Functions for Arc Overhangs ---"; \
+              print "\\n// --- New Helper Functions for Arc Overhangs ---"; \
               print "bool PerimeterGenerator::is_point_supported(const Point& pt, const Polygons& lower_layer) {"; \
               print "    const coord_t tolerance = scale_(0.1);"; \
-              print "    Polygon buffer = offset(Polygon({pt}), tolerance)[0]; \
+              print "    Polygon buffer = offset(Polygon({pt}), tolerance)[0];"; \
               print "    return !intersection(buffer, lower_layer).empty();"; \
               print "}"; \
               print "std::vector<Point> PerimeterGenerator::find_supported_starts(const Polygon& perimeter, const Polygons& lower_layer) {"; \
@@ -103,11 +103,11 @@ jobs:
               print "        Polyline arc_path;"; \
               print "        arc_path.points.push_back(start);"; \
               print "        double current_offset = arc_step_size;"; \
-              print "        while (current_offset <= max_radius) { \
+              print "        while (current_offset <= max_radius) { "; \
               print "            Polygons offset_perimeter = offset(overhang, current_offset);"; \
               print "            if (offset_perimeter.empty()) break;"; \
-              print "            Point next_point = offset_perimeter[0].closest_point(start); \
-              print "            arc_path.points.push_back(next_point); \
+              print "            Point next_point = offset_perimeter[0].closest_point(start);"; \
+              print "            arc_path.points.push_back(next_point);"; \
               print "            current_offset += arc_step_size;"; \
               print "        }"; \
               print "        if (arc_path.points.size() > 1) {"; \
