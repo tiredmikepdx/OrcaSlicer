@@ -22,12 +22,16 @@ jobs:
           git config --global user.email 'actions@github.com'
 
       - name: Cache Dependencies
+        id: cache-dependencies
         uses: actions/cache@v3
         with:
           path: /etc/apt/archives
           key: apt-packages-${{ runner.os }}-${{ hashFiles('apt-packages.txt') }}
-          restore-keys: |
-            apt-packages-${{ runner.os }}-
+          restore-keys: apt-packages-${{ runner.os }}-
+
+      - name: Log Cache Miss
+        if: steps.cache-dependencies.outputs.cache-hit != 'true'
+        run: echo "⚠️ Cache not found for apt packages. This run may take longer due to dependency re-installation."
 
       - name: Install Dependencies
         run: |
