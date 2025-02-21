@@ -104,7 +104,7 @@ jobs:
           tar xzf v2.7.1.tar.gz
           cd nlopt-2.7.1
           mkdir build
-          cd nlopt-2.7.1/build
+          cd build
           cmake ..
           make -j$(nproc)
           sudo make install
@@ -141,9 +141,9 @@ jobs:
         uses: actions/cache@v3
         with:
           path: build
-          key: cmake-build-${{ runner.os }}-${{ github.sha }}-nlopt-build-dir-fix-yaml-validation-openvdb-apt-nlopt-source-ilmbase-separate-install-attempt18
+          key: cmake-build-${{ runner.os }}-${{ github.sha }}-nlopt-build-dir-fix-yaml-validation-openvdb-apt-nlopt-source-ilmbase-separate-install-attempt19 # Attempt 19 key
           restore-keys: |
-            cmake-build-${{ runner.os }}-nlopt-build-dir-fix-yaml-validation-openvdb-apt-nlopt-source-ilmbase-separate-install-attempt18
+            cmake-build-${{ runner.os }}-nlopt-build-dir-fix-yaml-validation-openvdb-apt-nlopt-source-ilmbase-separate-install-attempt19
 
       - name: Configure CMake - Explicit Paths and Arguments
         run: |
@@ -175,7 +175,7 @@ jobs:
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: OrcaSlicer-Build-Attempt18
+          name: OrcaSlicer-Build-Attempt19
           path: build/bin/
 
       - name: Cleanup Unused Dependencies
