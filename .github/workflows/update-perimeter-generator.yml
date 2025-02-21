@@ -25,8 +25,8 @@ jobs:
         with:
           path: /etc/apt/archives
           # Force cache invalidation by adding a timestamp to the key
-          key: apt-packages-<span class="math-inline">\{\{ runner\.os \}\}\-</span>{{ hashFiles('apt-packages.txt') }}-<span class="math-inline">\{\{ github\.run\_id \}\}
-restore\-keys\: apt\-packages\-</span>{{ runner.os }}-
+          key: apt-packages-${{ runner.os }}-${{ hashFiles('apt-packages.txt') }}-${{ github.run_id }}
+          restore-keys: apt-packages-${{ runner.os }}
 
       - name: Log Cache Miss
         if: steps.cache-dependencies.outputs.cache-hit != 'true'
@@ -92,17 +92,19 @@ restore\-keys\: apt\-packages\-</span>{{ runner.os }}-
 
       - name: Modify CMake Configuration to Find NLopt in /usr/local
         run: |
-          echo "CMAKE_PREFIX_PATH=/usr/local" >> <span class="math-inline">GITHUB\_ENV \# Add /usr/local to CMake search path
-\- name\: Clear CMake Cache
-run\: \|
-rm \-rf build
-\- name\: Cache CMake Build
-uses\: actions/cache@v3
-with\:
-path\: build
-key\: cmake\-build\-</span>{{ runner.os }}-<span class="math-inline">\{\{ github\.sha \}\}\-nlopt\-source
-restore\-keys\: \|
-cmake\-build\-</span>{{ runner.os }}-nlopt-source
+          echo "CMAKE_PREFIX_PATH=/usr/local" >> $GITHUB_ENV # Add /usr/local to CMake search path
+
+      - name: Clear CMake Cache
+        run: |
+          rm -rf build
+
+      - name: Cache CMake Build
+        uses: actions/cache@v3
+        with:
+          path: build
+          key: cmake-build-${{ runner.os }}-${{ github.sha }}-nlopt-source
+          restore-keys: |
+            cmake-build-${{ runner.os }}-nlopt-source
 
       - name: Configure CMake
         run: |
