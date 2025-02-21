@@ -63,7 +63,7 @@ jobs:
 
       - name: Modify PerimeterGenerator.cpp (Arc Overhang Logic & Threshold)
         run: |
-          FILE_PG="src/slic3r/PerimeterGenerator.cpp"
+          FILE_PG="src/libslic3r/PerimeterGenerator.cpp"
           # Modify threshold_external calculation
           sed -i '/coord_t threshold_external = 0.0;/c\
           const float expand_factor = 1.03f;\
@@ -151,7 +151,7 @@ jobs:
 
       - name: Modify GCode.cpp (Arc Overhang Support in extrude_loop)
         run: |
-          FILE_GC="src/slic3r/GCode.cpp"
+          FILE_GC="src/libslic3r/GCode.cpp"
           # Integrate Arc Overhang settings into extrude_loop in GCode.cpp
           sed -i '/\/\/ --- Original Extrusion Logic ---/i \
           \n    bool is_arc_overhang = (loop.role() == erOverhangPerimeter && m_config->enable_arc_overhangs.value); \
@@ -189,7 +189,7 @@ jobs:
 
       - name: Modify PrintConfig.cpp (GUI Settings)
         run: |
-          FILE_PC="src/slic3r/PrintConfig.cpp"
+          FILE_PC="src/libslic3r/PrintConfig.cpp"
           # Add Arc Overhang settings to init_common_params in PrintConfig.cpp
           sed -i '/\/\/ \[Rest of the configuration settings...\]/i \
           \n    // --- Begin Arc Overhang Settings --- \
