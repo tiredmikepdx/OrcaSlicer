@@ -129,4 +129,3 @@ jobs:
           http.https://github.com/.extraheader
           /usr/bin/git config --local --unset-all http.https://github.com/.extraheader
           /usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
-```
