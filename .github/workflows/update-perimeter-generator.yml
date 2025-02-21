@@ -106,11 +106,11 @@ jobs:
         uses: actions/cache@v3
         with:
           path: build
-          key: cmake-build-${{ runner.os }}-${{ github.sha }}-openvdb-apt-nlopt-source-ilmbase-dir # Updated cache key
+          key: cmake-build-${{ runner.os }}-${{ github.sha }}-openvdb-apt-nlopt-source-ilmbase-dir-explicit-paths # Updated cache key
           restore-keys: |
-            cmake-build-${{ runner.os }}-openvdb-apt-nlopt-source-ilmbase-dir
+            cmake-build-${{ runner.os }}-openvdb-apt-nlopt-source-ilmbase-dir-explicit-paths
 
-      - name: Configure CMake
+      - name: Configure CMake with Explicit Paths
         run: |
           cmake -B build -S . \
             -DCMAKE_BUILD_TYPE=Release \
@@ -118,7 +118,9 @@ jobs:
             -DUSE_GUI=ON \
             -DENABLE_MULTITHREADING=ON \
             -DENABLE_LOGGING=ON \
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DOPENVDB_FIND_MODULE_PATH=/usr/share/OpenVDB \
+            -DIlmBase_DIR=/usr/lib/cmake/IlmBase-2.5
 
       - name: Build Project
         run: |
