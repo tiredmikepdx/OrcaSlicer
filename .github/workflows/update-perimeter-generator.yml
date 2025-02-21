@@ -60,8 +60,8 @@ jobs:
             libfreetype6-dev \
             libzip-dev \
             gettext \
-            git-lfs
-            libcereal-dev
+            git-lfs \
+            libcereal-dev # Make sure libcereal-dev is part of the same command
 
       - name: Modify PerimeterGenerator.cpp (Arc Overhang Logic & Threshold)
         run: |
