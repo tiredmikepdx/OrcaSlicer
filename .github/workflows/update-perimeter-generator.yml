@@ -1,5 +1,4 @@
 name: Build & Test OrcaSlicer with Arc Overhang Enhancements
-
 on:
   push:
     branches:
@@ -11,7 +10,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
@@ -20,6 +18,7 @@ jobs:
         run: |
           git config --global user.name 'GitHub Actions'
           git config --global user.email 'actions@github.com'
+
       - name: Cache Dependencies
         id: cache-dependencies
         uses: actions/cache@v3
@@ -61,9 +60,10 @@ jobs:
             libzip-dev \
             gettext \
             git-lfs
+
       - name: Modify PerimeterGenerator.cpp (Arc Overhang Logic & Threshold)
         run: |
-          FILE_PG="src/libslic3r/PerimeterGenerator.cpp"
+          FILE_PG="src/slic3r/PerimeterGenerator.cpp"
           # Modify threshold_external calculation
           sed -i '/coord_t threshold_external = 0.0;/c\
           const float expand_factor = 1.03f;\
@@ -148,9 +148,10 @@ jobs:
               } \
           } \
           \n    // -- End Arc Overhang Integration --' "$FILE_PG"
+
       - name: Modify GCode.cpp (Arc Overhang Support in extrude_loop)
         run: |
-          FILE_GC="src/libslic3r/GCode.cpp"
+          FILE_GC="src/slic3r/GCode.cpp"
           # Integrate Arc Overhang settings into extrude_loop in GCode.cpp
           sed -i '/\/\/ --- Original Extrusion Logic ---/i \
           \n    bool is_arc_overhang = (loop.role() == erOverhangPerimeter && m_config->enable_arc_overhangs.value); \
@@ -185,9 +186,10 @@ jobs:
               gcode += this->set_fan(original_fan, true); \
               m_current_speed = original_speed; \
           } else {' "$FILE_GC"
+
       - name: Modify PrintConfig.cpp (GUI Settings)
         run: |
-          FILE_PC="src/libslic3r/PrintConfig.cpp"
+          FILE_PC="src/slic3r/PrintConfig.cpp"
           # Add Arc Overhang settings to init_common_params in PrintConfig.cpp
           sed -i '/\/\/ \[Rest of the configuration settings...\]/i \
           \n    // --- Begin Arc Overhang Settings --- \
@@ -216,14 +218,16 @@ jobs:
           def->min = 0; \
           def->default_value = new ConfigOptionFloat(5.0); \
           \n    // --- End Arc Overhang Settings ---' "$FILE_PC"
+
       - name: Modify GUI ConfigWizard.cpp (GUI Option)
         run: |
-          GUI_FILE="src/libslic3r/GUI/ConfigWizard.cpp"
+          GUI_FILE="src/slic3r/GUI/ConfigWizard.cpp"
           if ! grep -q "arc_overhang" "$GUI_FILE"; then
             echo 'Adding GUI option for Arc Overhang...'
             sed -i '/add_option("enable_arc_overhang",/c\
             add_option("enable_arc_overhang", _("Enable Arc Overhang"), "", false);' "$GUI_FILE"
           fi
+
       - name: Cache CMake Build
         uses: actions/cache@v3
         with:
@@ -231,6 +235,7 @@ jobs:
           key: cmake-build-${{ runner.os }}-${{ github.sha }}
           restore-keys: |
             cmake-build-${{ runner.os }}-
+
       - name: Configure CMake
         run: |
           cmake -B build -S . \
@@ -240,16 +245,20 @@ jobs:
             -DENABLE_MULTITHREADING=ON \
             -DENABLE_LOGGING=ON \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
       - name: Build Project
         run: |
           cmake --build build --parallel $(nproc)
+
       - name: Run Tests
         run: |
           cd build
           ctest --output-on-failure
+
       - name: Verify Code Formatting
         run: |
           clang-format --dry-run --Werror $(find . -name '*.cpp' -o -name '*.h')
+
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
