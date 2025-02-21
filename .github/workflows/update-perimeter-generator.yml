@@ -24,7 +24,6 @@ jobs:
         uses: actions/cache@v3
         with:
           path: /etc/apt/archives
-          # Force cache invalidation by adding a timestamp to the key
           key: apt-packages-${{ runner.os }}-${{ hashFiles('apt-packages.txt') }}-${{ github.run_id }}
           restore-keys: apt-packages-${{ runner.os }}
 
@@ -32,9 +31,28 @@ jobs:
         if: steps.cache-dependencies.outputs.cache-hit != 'true'
         run: echo "⚠️ Cache not found for apt packages. This run may take longer due to dependency re-installation."
 
-      - name: Install Base Dependencies
+      - name: Validate Workflow YAML Syntax
         run: |
+          echo "🔍 Validating workflow YAML syntax..."
+          python -c 'import yaml; yaml.safe_load(open(".github/workflows/update-perimeter-generator.yml"))'
+          echo "✅ Workflow YAML syntax validated successfully."
+
+      - name: Clear Apt Cache
+        run: sudo apt-get clean
+
+      - name: Update Apt Package Lists
+        run: |
+          set -x # Enable verbose shell tracing
           sudo apt-get update
+          set +x # Disable verbose shell tracing
+          if [ $? -ne 0 ]; then
+            echo "❌ Error updating apt package lists. Please check the apt-get output."
+            exit 1
+          fi
+
+      - name: Install Base Dependencies (Excluding IlmBase and OpenVDB)
+        run: |
+          set -x # Enable verbose shell tracing
           sudo apt-get install -y \
             git \
             cmake \
@@ -61,11 +79,20 @@ jobs:
             libzip-dev \
             gettext \
             git-lfs \
-            libcereal-dev \
-            libopenvdb-dev \
-            libilmbase-dev # Added OpenVDB and IlmBase dependencies
+            libcereal-dev
+          set +x # Disable verbose shell tracing
           if [ $? -ne 0 ]; then
-            echo "❌ Error installing base dependencies. Please check the apt-get output."
+            echo "❌ Error installing base dependencies (excluding IlmBase and OpenVDB). Please check the apt-get output."
+            exit 1
+          fi
+
+      - name: Install IlmBase and OpenVDB Separately
+        run: |
+          set -x # Enable verbose shell tracing
+          sudo apt-get install -y libilmbase-dev libopenvdb-dev
+          set +x # Disable verbose shell tracing
+          if [ $? -ne 0 ]; then
+            echo "❌ Error installing IlmBase and OpenVDB. Please check the apt-get output."
             exit 1
           fi
 
@@ -73,14 +100,14 @@ jobs:
         run: |
           mkdir nlopt-build
           cd nlopt-build
-          wget https://github.com/stevengj/nlopt/archive/v2.7.1.tar.gz # Get NLopt source
+          wget https://github.com/stevengj/nlopt/archive/v2.7.1.tar.gz
           tar xzf v2.7.1.tar.gz
           cd nlopt-2.7.1
           mkdir build
-          cd build
+          cd nlopt-2.7.1/build
           cmake ..
-          make -j$(nproc) # Use parallel build for make
-          sudo make install # Install NLopt to /usr/local/ by default - using sudo
+          make -j$(nproc)
+          sudo make install
 
       - name: Verify NLopt Installation (Build from Source)
         run: |
@@ -101,10 +128,10 @@ jobs:
         run: |
           dpkg -L libilmbase-dev
 
-      - name: Modify CMake Configuration to Find NLopt, OpenVDB, and IlmBase
+      - name: Modify CMake Configuration - Set PREFIX_PATH and IlmBase_DIR (Environment Variables)
         run: |
-          echo "CMAKE_PREFIX_PATH=/usr/local;/usr;/opt;/usr/lib;/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV # Add common prefixes
-          echo "IlmBase_DIR=/usr/lib/cmake/IlmBase-2.5" >> $GITHUB_ENV # Explicitly set IlmBase_DIR
+          echo "CMAKE_PREFIX_PATH=/usr/local;/usr;/opt;/usr/lib;/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
+          echo "IlmBase_DIR=/usr/lib/cmake/IlmBase-2.5" >> $GITHUB_ENV
 
       - name: Clear CMake Cache
         run: |
@@ -114,11 +141,11 @@ jobs:
         uses: actions/cache@v3
         with:
           path: build
-          key: cmake-build-${{ runner.os }}-${{ github.sha }}-openvdb-apt-nlopt-source-ilmbase-dir-check-path-error-check # Updated cache key
+          key: cmake-build-${{ runner.os }}-${{ github.sha }}-yaml-validation-openvdb-apt-nlopt-source-ilmbase-separate-install # Attempt 16 key
           restore-keys: |
-            cmake-build-${{ runner.os }}-openvdb-apt-nlopt-source-ilmbase-dir-check-path-error-check
+            cmake-build-${{ runner.os }}-yaml-validation-openvdb-apt-nlopt-source-ilmbase-separate-install
 
-      - name: Configure CMake with Explicit Paths
+      - name: Configure CMake - Explicit Paths and Arguments
         run: |
           cmake -B build -S . \
             -DCMAKE_BUILD_TYPE=Release \
@@ -128,7 +155,9 @@ jobs:
             -DENABLE_LOGGING=ON \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
             -DOPENVDB_FIND_MODULE_PATH=/usr/share/OpenVDB \
-            -DIlmBase_DIR=/usr/lib/cmake/IlmBase-2.5
+            -DIlmBase_DIR=/usr/lib/cmake/IlmBase-2.5 \
+            -DCMAKE_PREFIX_PATH=/usr/local;/usr;/opt;/usr/lib;/usr/lib/x86_64-linux-gnu \
+            -Wdev -Werror=dev
 
       - name: Build Project
         run: |
@@ -146,7 +175,7 @@ jobs:
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: OrcaSlicer-Build
+          name: OrcaSlicer-Build-Attempt16
           path: build/bin/
 
       - name: Cleanup Unused Dependencies
