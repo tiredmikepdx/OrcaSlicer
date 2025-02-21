@@ -64,6 +64,16 @@ jobs:
             libcereal-dev \
             libnlopt-dev # Added libnlopt-dev here
 
+      - name: Verify NLopt Installation
+        run: |
+          dpkg -s libnlopt-dev
+          if dpkg -s libnlopt-dev 2>/dev/null; then
+            echo "✅ libnlopt-dev is installed"
+          else
+            echo "❌ libnlopt-dev is NOT installed. Check for errors in previous step."
+            exit 1
+          fi
+
       - name: Modify PerimeterGenerator.cpp (Arc Overhang Logic & Threshold)
         run: |
           FILE_PG="src/libslic3r/PerimeterGenerator.cpp"
@@ -230,6 +240,10 @@ jobs:
             sed -i '/add_option("enable_arc_overhang",/c\
             add_option("enable_arc_overhang", _("Enable Arc Overhang"), "", false);' "$GUI_FILE"
           fi
+
+      - name: Clear CMake Cache
+        run: |
+          rm -rf build
 
       - name: Cache CMake Build
         uses: actions/cache@v3
