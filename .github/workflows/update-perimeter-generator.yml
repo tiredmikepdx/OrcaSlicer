@@ -61,7 +61,9 @@ jobs:
             libzip-dev \
             gettext \
             git-lfs \
-            libcereal-dev
+            libcereal-dev \
+            libopenvdb-dev \
+            libilmbase-dev # Added OpenVDB and IlmBase dependencies
 
       - name: Download and Build NLopt from Source
         run: |
@@ -103,9 +105,9 @@ jobs:
         uses: actions/cache@v3
         with:
           path: build
-          key: cmake-build-${{ runner.os }}-${{ github.sha }}-nlopt-source
+          key: cmake-build-${{ runner.os }}-${{ github.sha }}-openvdb-apt-nlopt-source # Updated cache key
           restore-keys: |
-            cmake-build-${{ runner.os }}-nlopt-source
+            cmake-build-${{ runner.os }}-openvdb-apt-nlopt-source
 
       - name: Configure CMake
         run: |
