@@ -24,7 +24,8 @@ jobs:
         uses: actions/cache@v3
         with:
           path: /etc/apt/archives
-          key: apt-packages-${{ runner.os }}-${{ hashFiles('apt-packages.txt') }}
+          # Force cache invalidation by adding a timestamp to the key
+          key: apt-packages-${{ runner.os }}-${{ hashFiles('apt-packages.txt') }}-${{ github.run_id }}
           restore-keys: apt-packages-${{ runner.os }}-
 
       - name: Log Cache Miss
@@ -60,6 +61,7 @@ jobs:
             libzip-dev \
             gettext \
             git-lfs
+            libcereal-dev
 
       - name: Modify PerimeterGenerator.cpp (Arc Overhang Logic & Threshold)
         run: |
