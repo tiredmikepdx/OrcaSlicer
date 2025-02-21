@@ -61,7 +61,8 @@ jobs:
             libzip-dev \
             gettext \
             git-lfs \
-            libcereal-dev # Make sure libcereal-dev is part of the same command
+            libcereal-dev \
+            libnlopt-dev # Added libnlopt-dev here
 
       - name: Modify PerimeterGenerator.cpp (Arc Overhang Logic & Threshold)
         run: |
