@@ -86,6 +86,9 @@ jobs:
             exit 1
           fi
 
+      - name: Search for ilmbase-dev Packages
+        run: apt-cache search ilmbase-dev
+
       - name: Install IlmBase Separately (Verbose)
         run: |
           set -x # Enable verbose shell tracing
@@ -154,9 +157,9 @@ jobs:
         uses: actions/cache@v3
         with:
           path: build
-          key: cmake-build-${{ runner.os }}-${{ github.sha }}-ilmbase-verbose-split-install-nlopt-build-dir-fix-yaml-validation-openvdb-apt-nlopt-source-ilmbase-separate-install-attempt20 # Attempt 20 key
+          key: cmake-build-${{ runner.os }}-${{ github.sha }}-apt-cache-search-ilmbase-nlopt-build-dir-fix-yaml-validation-openvdb-apt-nlopt-source-ilmbase-separate-install-attempt22 # Attempt 22 key
           restore-keys: |
-            cmake-build-${{ runner.os }}-ilmbase-verbose-split-install-nlopt-build-dir-fix-yaml-validation-openvdb-apt-nlopt-source-ilmbase-separate-install-attempt20
+            cmake-build-${{ runner.os }}-apt-cache-search-ilmbase-nlopt-build-dir-fix-yaml-validation-openvdb-apt-nlopt-source-ilmbase-separate-install-attempt22
 
       - name: Configure CMake - Explicit Paths and Arguments
         run: |
@@ -188,7 +191,7 @@ jobs:
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: OrcaSlicer-Build-Attempt20
+          name: OrcaSlicer-Build-Attempt22
           path: build/bin/
 
       - name: Cleanup Unused Dependencies
