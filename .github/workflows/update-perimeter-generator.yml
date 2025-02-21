@@ -73,7 +73,8 @@ jobs:
           mkdir build
           cd build
           cmake ..
-          make install # Install NLopt to /usr/local/ by default
+          make -j$(nproc) # Use parallel build for make
+          sudo make install # Install NLopt to /usr/local/ by default - using sudo
 
       - name: Verify NLopt Installation (Build from Source)
         run: |
