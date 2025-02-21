@@ -93,9 +93,10 @@ jobs:
             exit 1
           fi
 
-      - name: Modify CMake Configuration to Find NLopt and OpenVDB
+      - name: Modify CMake Configuration to Find NLopt, OpenVDB, and IlmBase
         run: |
           echo "CMAKE_PREFIX_PATH=/usr/local;/usr;/opt;/usr/lib;/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV # Add common prefixes
+          echo "IlmBase_DIR=/usr/lib/cmake/IlmBase-2.5" >> $GITHUB_ENV # Explicitly set IlmBase_DIR
 
       - name: Clear CMake Cache
         run: |
@@ -105,9 +106,9 @@ jobs:
         uses: actions/cache@v3
         with:
           path: build
-          key: cmake-build-${{ runner.os }}-${{ github.sha }}-openvdb-apt-nlopt-source-prefixpath # Updated cache key
+          key: cmake-build-${{ runner.os }}-${{ github.sha }}-openvdb-apt-nlopt-source-ilmbase-dir # Updated cache key
           restore-keys: |
-            cmake-build-${{ runner.os }}-openvdb-apt-nlopt-source-prefixpath
+            cmake-build-${{ runner.os }}-openvdb-apt-nlopt-source-ilmbase-dir
 
       - name: Configure CMake
         run: |
