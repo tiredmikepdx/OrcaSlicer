@@ -1,4 +1,38 @@
-- name: Install Base Dependencies
+name: Build & Test OrcaSlicer with Arc Overhang Enhancements
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Git
+        run: |
+          git config --global user.name 'GitHub Actions'
+          git config --global user.email 'actions@github.com'
+
+      - name: Cache Dependencies
+        id: cache-dependencies
+        uses: actions/cache@v3
+        with:
+          path: /etc/apt/archives
+          # Force cache invalidation by adding a timestamp to the key
+          key: apt-packages-${{ runner.os }}-${{ hashFiles('apt-packages.txt') }}-${{ github.run_id }}
+          restore-keys: apt-packages-${{ runner.os }}
+
+      - name: Log Cache Miss
+        if: steps.cache-dependencies.outputs.cache-hit != 'true'
+        run: echo "⚠️ Cache not found for apt packages. This run may take longer due to dependency re-installation."
+
+      - name: Install Base Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -34,3 +68,87 @@
             echo "❌ Error installing base dependencies. Please check the apt-get output."
             exit 1
           fi
+
+      - name: Download and Build NLopt from Source
+        run: |
+          mkdir nlopt-build
+          cd nlopt-build
+          wget https://github.com/stevengj/nlopt/archive/v2.7.1.tar.gz # Get NLopt source
+          tar xzf v2.7.1.tar.gz
+          cd nlopt-2.7.1
+          mkdir build
+          cd build
+          cmake ..
+          make -j$(nproc) # Use parallel build for make
+          sudo make install # Install NLopt to /usr/local/ by default - using sudo
+
+      - name: Verify NLopt Installation (Build from Source)
+        run: |
+          if test -f /usr/local/include/nlopt.hpp; then
+            echo "✅ NLopt header found in /usr/local/include"
+          else
+            echo "❌ NLopt header NOT found in /usr/local/include"
+            exit 1
+          fi
+          if test -f /usr/local/lib/libnlopt.so; then
+            echo "✅ NLopt library found in /usr/local/lib"
+          else
+            echo "❌ NLopt library NOT found in /usr/local/lib"
+            exit 1
+          fi
+
+      - name: Check IlmBase Installation Path
+        run: |
+          dpkg -L libilmbase-dev
+
+      - name: Modify CMake Configuration to Find NLopt, OpenVDB, and IlmBase
+        run: |
+          echo "CMAKE_PREFIX_PATH=/usr/local;/usr;/opt;/usr/lib;/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV # Add common prefixes
+          echo "IlmBase_DIR=/usr/lib/cmake/IlmBase-2.5" >> $GITHUB_ENV # Explicitly set IlmBase_DIR
+
+      - name: Clear CMake Cache
+        run: |
+          rm -rf build
+
+      - name: Cache CMake Build
+        uses: actions/cache@v3
+        with:
+          path: build
+          key: cmake-build-${{ runner.os }}-${{ github.sha }}-openvdb-apt-nlopt-source-ilmbase-dir-check-path-error-check # Updated cache key
+          restore-keys: |
+            cmake-build-${{ runner.os }}-openvdb-apt-nlopt-source-ilmbase-dir-check-path-error-check
+
+      - name: Configure CMake with Explicit Paths
+        run: |
+          cmake -B build -S . \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DUSE_ARC_OVERHANG=ON \
+            -DUSE_GUI=ON \
+            -DENABLE_MULTITHREADING=ON \
+            -DENABLE_LOGGING=ON \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DOPENVDB_FIND_MODULE_PATH=/usr/share/OpenVDB \
+            -DIlmBase_DIR=/usr/lib/cmake/IlmBase-2.5
+
+      - name: Build Project
+        run: |
+          cmake --build build --parallel $(nproc)
+
+      - name: Run Tests
+        run: |
+          cd build
+          ctest --output-on-failure
+
+      - name: Verify Code Formatting
+        run: |
+          clang-format --dry-run --Werror $(find . -name '*.cpp' -o -name '*.h')
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: OrcaSlicer-Build
+          path: build/bin/
+
+      - name: Cleanup Unused Dependencies
+        if: always()
+        run: sudo apt-get clean
