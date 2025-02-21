@@ -86,13 +86,26 @@ jobs:
             exit 1
           fi
 
-      - name: Install IlmBase and OpenVDB Separately
+      - name: Install IlmBase Separately (Verbose)
         run: |
           set -x # Enable verbose shell tracing
-          sudo apt-get install -y libilmbase-dev libopenvdb-dev
+          sudo apt-get install -y -o Debug::pkgProblemResolver=yes libilmbase-dev
           set +x # Disable verbose shell tracing
           if [ $? -ne 0 ]; then
-            echo "❌ Error installing IlmBase and OpenVDB. Please check the apt-get output."
+            echo "❌ Error installing IlmBase. Please check the apt-get output."
+            exit 1
+          fi
+
+      - name: Check IlmBase Status Immediately
+        run: dpkg -s libilmbase-dev
+
+      - name: Install OpenVDB Separately
+        run: |
+          set -x # Enable verbose shell tracing
+          sudo apt-get install -y libopenvdb-dev
+          set +x # Disable verbose shell tracing
+          if [ $? -ne 0 ]; then
+            echo "❌ Error installing OpenVDB. Please check the apt-get output."
             exit 1
           fi
 
@@ -121,6 +134,7 @@ jobs:
             echo "✅ NLopt library found in /usr/local/lib"
           else
             echo "❌ NLopt library NOT found in /usr/local/lib"
+            exit 1
           fi
 
       - name: Check IlmBase Installation Path
@@ -140,9 +154,9 @@ jobs:
         uses: actions/cache@v3
         with:
           path: build
-          key: cmake-build-${{ runner.os }}-${{ github.sha }}-nlopt-build-dir-fix-yaml-validation-openvdb-apt-nlopt-source-ilmbase-separate-install-attempt19 # Attempt 19 key
+          key: cmake-build-${{ runner.os }}-${{ github.sha }}-ilmbase-verbose-split-install-nlopt-build-dir-fix-yaml-validation-openvdb-apt-nlopt-source-ilmbase-separate-install-attempt20 # Attempt 20 key
           restore-keys: |
-            cmake-build-${{ runner.os }}-nlopt-build-dir-fix-yaml-validation-openvdb-apt-nlopt-source-ilmbase-separate-install-attempt19
+            cmake-build-${{ runner.os }}-ilmbase-verbose-split-install-nlopt-build-dir-fix-yaml-validation-openvdb-apt-nlopt-source-ilmbase-separate-install-attempt20
 
       - name: Configure CMake - Explicit Paths and Arguments
         run: |
@@ -174,7 +188,7 @@ jobs:
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: OrcaSlicer-Build-Attempt19
+          name: OrcaSlicer-Build-Attempt20
           path: build/bin/
 
       - name: Cleanup Unused Dependencies
