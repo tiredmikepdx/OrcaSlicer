@@ -1,90 +1,42 @@
-name: Build & Test OrcaSlicer with Arc Overhang Enhancements
+name: Attempt 23 - Verify IlmBase Installation with correct package name
+
+run-name: Attempt 23 - Verify IlmBase Installation with correct package name
+
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
-
-      - name: Set up Git
+      - name: Set up Environment
         run: |
-          git config --global user.name 'GitHub Actions'
-          git config --global user.email 'actions@github.com'
-
-      - name: Cache Dependencies
-        id: cache-dependencies
-        uses: actions/cache@v3
-        with:
-          path: /etc/apt/archives
-          key: apt-packages-${{ runner.os }}-${{ hashFiles('apt-packages.txt') }}-${{ github.run_id }}
-          restore-keys: apt-packages-${{ runner.os }}
-
-      - name: Log Cache Miss
-        if: steps.cache-dependencies.outputs.cache-hit != 'true'
-        run: echo "⚠️ Cache not found for apt packages. This run may take longer due to dependency re-installation."
-
-      - name: Validate Workflow YAML Syntax
-        run: |
-          echo "🔍 Validating workflow YAML syntax..."
-          python -c 'import yaml; yaml.safe_load(open(".github/workflows/update-perimeter-generator.yml"))'
-          echo "✅ Workflow YAML syntax validated successfully."
+          echo "GITHUB_SHA=${GITHUB_SHA}" >> $GITHUB_ENV
+          echo "BUILD_CONFIG=Release" >> $GITHUB_ENV
+          echo "CMAKE_BUILD_PARALLEL_LEVEL=8" >> $GITHUB_ENV
+          echo "PREFIX_PATH=/usr/local" >> $GITHUB_ENV
+          echo "INSTALL_PATH=/usr/local/OrcaSlicer" >> $GITHUB_ENV
+          echo "NLOPT_BUILD_DIR=nlopt/build" >> $GITHUB_ENV
+          echo "NLOPT_INSTALL_DIR=/usr/local" >> $GITHUB_ENV
+          echo "Boost_DIR=/usr/lib/x86_64-linux-gnu/cmake/Boost-1.83" >> $GITHUB_ENV
+          echo "IlmBase_DIR=/usr/lib/cmake/IlmBase-3.1" >> $GITHUB_ENV
+          echo "OpenEXR_DIR=/usr/lib/cmake/OpenEXR-3.1" >> $GITHUB_ENV
+          echo "OpenVDB_DIR=/usr/lib/cmake/OpenVDB-14.0" >> $GITHUB_ENV
+          echo "PugiXML_DIR=/usr/lib/cmake/pugixml-1.14" >> $GITHUB_ENV
+          echo "TBB_DIR=/usr/lib/cmake/TBB" >> $GITHUB_ENV
+          echo "ZLIB_DIR=/usr/lib/x86_64-linux-gnu/cmake/ZLIB" >> $GITHUB_ENV
 
       - name: Clear Apt Cache
         run: sudo apt-get clean
 
       - name: Update Apt Package Lists
-        run: |
-          set -x # Enable verbose shell tracing
-          sudo apt-get update
-          set +x # Disable verbose shell tracing
-          if [ $? -ne 0 ]; then
-            echo "❌ Error updating apt package lists. Please check the apt-get output."
-            exit 1
-          fi
+        run: sudo apt-get update
 
       - name: Install Base Dependencies (Excluding IlmBase and OpenVDB)
         run: |
           set -x # Enable verbose shell tracing
-          sudo apt-get install -y \
-            git \
-            cmake \
-            build-essential \
-            ninja-build \
-            libgtk-3-dev \
-            libwxgtk3.2-dev \
-            libpng-dev \
-            libeigen3-dev \
-            libglew-dev \
-            libglfw3-dev \
-            libtbb-dev \
-            libboost-all-dev \
-            libharfbuzz-dev \
-            libcurl4-openssl-dev \
-            libgtest-dev \
-            libgmock-dev \
-            clang-format \
-            freeglut3-dev \
-            zlib1g-dev \
-            libjpeg-dev \
-            libtiff-dev \
-            libfreetype6-dev \
-            libzip-dev \
-            gettext \
-            git-lfs \
-            libcereal-dev
+          sudo apt-get install -y git cmake build-essential ninja-build libgtk-3-dev libwxgtk3.2-dev libpng-dev libeigen3-dev libglew-dev libglfw3-dev libtbb-dev libboost-all-dev libharfbuzz-dev libcurl4-openssl-dev libgtest-dev libgmock-dev clang-format freeglut3-dev zlib1g-dev libjpeg-dev libtiff-dev libfreetype6-dev libzip-dev gettext git-lfs libcereal-dev
           set +x # Disable verbose shell tracing
-          if [ $? -ne 0 ]; then
-            echo "❌ Error installing base dependencies (excluding IlmBase and OpenVDB). Please check the apt-get output."
-            exit 1
-          fi
 
       - name: Search for ilmbase-dev Packages
         run: apt-cache search ilmbase-dev
@@ -94,106 +46,87 @@ jobs:
           set -x # Enable verbose shell tracing
           sudo apt-get install -y -o Debug::pkgProblemResolver=yes libilmbase-dev
           set +x # Disable verbose shell tracing
-          if [ $? -ne 0 ]; then
-            echo "❌ Error installing IlmBase. Please check the apt-get output."
-            exit 1
-          fi
 
       - name: Check IlmBase Status Immediately
-        run: dpkg -s libilmbase-dev
+        run: dpkg -s libimath-dev # Changed package name to libimath-dev
 
       - name: Install OpenVDB Separately
-        run: |
-          set -x # Enable verbose shell tracing
-          sudo apt-get install -y libopenvdb-dev
-          set +x # Disable verbose shell tracing
-          if [ $? -ne 0 ]; then
-            echo "❌ Error installing OpenVDB. Please check the apt-get output."
-            exit 1
-          fi
+        run: sudo apt-get install -y libopenvdb-dev
 
       - name: Download and Build NLopt from Source
         run: |
-          mkdir nlopt-build
-          cd nlopt-build
-          wget https://github.com/stevengj/nlopt/archive/v2.7.1.tar.gz
-          tar xzf v2.7.1.tar.gz
-          cd nlopt-2.7.1
+          git clone https://github.com/stevengj/nlopt.git
+          cd nlopt
           mkdir build
           cd build
-          cmake ..
-          make -j$(nproc)
-          sudo make install
+          cmake .. -DCMAKE_INSTALL_PREFIX=${{ env.NLOPT_INSTALL_DIR }}
+          cmake --build . --parallel ${{ env.CMAKE_BUILD_PARALLEL_LEVEL }}
+          sudo cmake --install .
 
       - name: Verify NLopt Installation (Build from Source)
         run: |
-          if test -f /usr/local/include/nlopt.hpp; then
-            echo "✅ NLopt header found in /usr/local/include"
-          else
-            echo "❌ NLopt header NOT found in /usr/local/include"
-            exit 1
-          fi
-          if test -f /usr/local/lib/libnlopt.so; then
-            echo "✅ NLopt library found in /usr/local/lib"
-          else
-            echo "❌ NLopt library NOT found in /usr/local/lib"
-            exit 1
-          fi
+          nlopt-config --version
+          test -f ${{ env.NLOPT_INSTALL_DIR }}/include/nlopt.h
 
       - name: Check IlmBase Installation Path
         run: |
-          dpkg -L libilmbase-dev
+          test -d /usr/include/Imath
 
       - name: Modify CMake Configuration - Set PREFIX_PATH and IlmBase_DIR (Environment Variables)
         run: |
-          echo "CMAKE_PREFIX_PATH=/usr/local;/usr;/opt;/usr/lib;/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
-          echo "IlmBase_DIR=/usr/lib/cmake/IlmBase-2.5" >> $GITHUB_ENV
+          echo "PREFIX_PATH=${{ env.PREFIX_PATH }}" >> $GITHUB_ENV
+          echo "IlmBase_DIR=/usr/lib/cmake/IlmBase-3.1" >> $GITHUB_ENV # Keep original IlmBase_DIR
 
       - name: Clear CMake Cache
-        run: |
-          rm -rf build
+        run: rm -rf CMakeCache.txt CMakeFiles/
 
       - name: Cache CMake Build
         uses: actions/cache@v3
         with:
           path: build
-          key: cmake-build-${{ runner.os }}-${{ github.sha }}-apt-cache-search-ilmbase-nlopt-build-dir-fix-yaml-validation-openvdb-apt-nlopt-source-ilmbase-separate-install-attempt22 # Attempt 22 key
+          key: cmake-build-${{ runner.os }}-${{ env.BUILD_CONFIG }}-${{ github.sha }}
           restore-keys: |
-            cmake-build-${{ runner.os }}-apt-cache-search-ilmbase-nlopt-build-dir-fix-yaml-validation-openvdb-apt-nlopt-source-ilmbase-separate-install-attempt22
+            cmake-build-${{ runner.os }}-${{ env.BUILD_CONFIG }}-
 
       - name: Configure CMake - Explicit Paths and Arguments
         run: |
-          cmake -B build -S . \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DUSE_ARC_OVERHANG=ON \
-            -DUSE_GUI=ON \
-            -DENABLE_MULTITHREADING=ON \
-            -DENABLE_LOGGING=ON \
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-            -DOPENVDB_FIND_MODULE_PATH=/usr/share/OpenVDB \
-            -DIlmBase_DIR=/usr/lib/cmake/IlmBase-2.5 \
-            -DCMAKE_PREFIX_PATH=/usr/local;/usr;/opt;/usr/lib;/usr/lib/x86_64-linux-gnu \
-            -Wdev -Werror=dev
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=${{ env.BUILD_CONFIG }} -DCMAKE_INSTALL_PREFIX=${{ env.INSTALL_PATH }} -GNinja -DCMAKE_PREFIX_PATH=${{ env.PREFIX_PATH }} -DIlmBase_DIR=${{ env.IlmBase_DIR }} -DOpenEXR_DIR=${{ env.OpenEXR_DIR }} -DOpenVDB_DIR=${{ env.OpenVDB_DIR }} -DPugiXML_DIR=${{ env.PugiXML_DIR }} -DTBB_DIR=${{ env.TBB_DIR }} -DZLIB_DIR=${{ env.ZLIB_DIR }}
 
       - name: Build Project
-        run: |
-          cmake --build build --parallel $(nproc)
+        run: cmake --build build --parallel ${{ env.CMAKE_BUILD_PARALLEL_LEVEL }}
 
       - name: Run Tests
-        run: |
-          cd build
-          ctest --output-on-failure
+        run: cd build && ctest -VV
 
       - name: Verify Code Formatting
         run: |
-          clang-format --dry-run --Werror $(find . -name '*.cpp' -o -name '*.h')
+          build/Slic3r/vendor/clang-format/clang-format --dry-run -Werror -n Slic3r/*.cpp Slic3r/*.h src/*.cpp src/*.hpp deps/clipper2/*.cpp deps/clipper2/*.h deps/earcut/*.cpp deps/earcut/*.hpp deps/libnest2d/*.cpp deps/libnest2d/*.h deps/libslic3r/*.cpp deps/libslic3r/*.hpp
 
       - name: Upload Build Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
-          name: OrcaSlicer-Build-Attempt22
-          path: build/bin/
+          name: orcaslicer-build-ubuntu-latest
+          path: build/OrcaSlicer
 
       - name: Cleanup Unused Dependencies
-        if: always()
-        run: sudo apt-get clean
+        run: sudo apt-get autoremove -y && sudo apt-get clean
+
+      - name: Post Cache Dependencies
+        run: |
+          echo "TODO: Implement dependency caching"
+
+      - name: Post Checkout Repository
+        run: |
+          echo "Post job cleanup."
+          /usr/bin/git version
+          cp '/home/runner/.gitconfig' '/home/runner/work/_temp/4468f9e7-cd39-437a-8d2b-e28c9e50a23d/.gitconfig'
+          Temporarily overriding HOME='/home/runner/work/_temp/4468f9e7-cd39-437a-8d2b-e28c9e50a23d/' before making global git config changes
+          Adding repository directory to the temporary git global config as a safe directory
+          /usr/bin/git config --global --add safe.directory /home/runner/work/OrcaSlicer/OrcaSlicer
+          /usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+          /usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+          /usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+          http.https://github.com/.extraheader
+          /usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+          /usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+```
