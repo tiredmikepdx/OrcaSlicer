@@ -103,8 +103,8 @@ jobs:
           wget https://github.com/stevengj/nlopt/archive/v2.7.1.tar.gz
           tar xzf v2.7.1.tar.gz
           cd nlopt-2.7.1
-          mkdir build  # Corrected: Create 'build' directory here, inside 'nlopt-2.7.1'
-          cd build      # Corrected: Change directory to 'build' inside 'nlopt-2.7.1'
+          mkdir build
+          cd nlopt-2.7.1/build
           cmake ..
           make -j$(nproc)
           sudo make install
@@ -141,9 +141,9 @@ jobs:
         uses: actions/cache@v3
         with:
           path: build
-          key: cmake-build-${{ runner.os }}-${{ github.sha }}-nlopt-build-dir-fix-yaml-validation-openvdb-apt-nlopt-source-ilmbase-separate-install # Attempt 17 key
+          key: cmake-build-${{ runner.os }}-${{ github.sha }}-nlopt-build-dir-fix-yaml-validation-openvdb-apt-nlopt-source-ilmbase-separate-install-attempt18
           restore-keys: |
-            cmake-build-${{ runner.os }}-nlopt-build-dir-fix-yaml-validation-openvdb-apt-nlopt-source-ilmbase-separate-install
+            cmake-build-${{ runner.os }}-nlopt-build-dir-fix-yaml-validation-openvdb-apt-nlopt-source-ilmbase-separate-install-attempt18
 
       - name: Configure CMake - Explicit Paths and Arguments
         run: |
@@ -175,7 +175,7 @@ jobs:
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: OrcaSlicer-Build-Attempt17
+          name: OrcaSlicer-Build-Attempt18
           path: build/bin/
 
       - name: Cleanup Unused Dependencies
